@@ -15,7 +15,7 @@ import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../../config/api";
 interface LabsPageProps {
   onLogout: () => void;
   userName: string;
-  onSelectSet: (labId: string, labNumber: number, setNumber: number, manufacture: string, cabinetId: string) => void;
+  onSelectSet: (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string) => void;
   onNavigateToDashboard: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
   isDemoMode?: boolean;
@@ -702,7 +702,9 @@ export function LabsPage({ onLogout, userName, onSelectSet, onNavigateToDashboar
     const set = sets.find((s) => s.number === selectedSet);
     
     if (lab && set) {
-      onSelectSet(lab.lab_id, lab.number, set.number, set.manufacture, selectedCabinetId);
+      // Use cabinet_id from the set, or fallback to selectedCabinetId
+      const cabinetId = set.cabinet_id || selectedCabinetId;
+      onSelectSet(lab.lab_id, lab.number, cabinetId, set.manufacture, set.variant);
     }
   };
 
@@ -763,7 +765,7 @@ export function LabsPage({ onLogout, userName, onSelectSet, onNavigateToDashboar
                           <span>Loading labs...</span>
                         </div>
                       ) : (
-                        <SelectValue placeholder="Select a lab (1-50)" />
+                        <SelectValue placeholder="Select a lab" />
                       )}
                     </SelectTrigger>
                     <SelectContent>
@@ -927,14 +929,6 @@ export function LabsPage({ onLogout, userName, onSelectSet, onNavigateToDashboar
                           {labs.find((l) => l.lab_id === selectedLab)?.lab_name}
                         </Badge>
                       </div>
-                      {selectedCabinetId && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600">Cabinet ID:</span>
-                          <Badge variant="secondary">
-                            {selectedCabinetId}
-                          </Badge>
-                        </div>
-                      )}
                       {selectedManufacture && (
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-600">Manufacture:</span>
@@ -953,9 +947,15 @@ export function LabsPage({ onLogout, userName, onSelectSet, onNavigateToDashboar
                       )}
                       {selectedSet && (
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600">Set:</span>
+                          <span className="text-sm text-gray-600">Cabinet ID:</span>
                           <Badge variant="secondary">
-                            {sets.find((s) => s.number === selectedSet)?.name}
+                            {(() => {
+                              const set = sets.find((s) => s.number === selectedSet);
+                              const cabinetInfo = set?.cabinet_id 
+                                ? cabinetData.find(c => c.cabinet_id === set.cabinet_id && c.ch_type === set.manufacture)
+                                : null;
+                              return cabinetInfo?.cabinet_id?.toUpperCase() || set?.cabinet_id?.toUpperCase() || `Set ${selectedSet}`;
+                            })()}
                           </Badge>
                         </div>
                       )}

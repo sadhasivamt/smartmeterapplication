@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { toast } from "sonner";
 import { ApiConfigDialog } from "./api-config-dialog";
 import { API_ENDPOINTS, getApiUrl } from "../../config/api";
+import { enableDemoMode as enableDemoModeGlobal, isDemoModeEnabled } from "../../utils/demoMode";
+import { FORCE_DEMO_MODE, DEMO_USER } from "../../config/demo";
 
 interface AuthPageProps {
-  onLoginSuccess: (userName: string, isDemoMode?: boolean) => void;
+  onLoginSuccess: (userName: string, isDemoMode?: boolean, userEmail?: string, userRole?: string) => void;
 }
 
 export function AuthPage({ onLoginSuccess }: AuthPageProps) {
@@ -30,25 +32,32 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
   // Check if demo mode was previously enabled
   useEffect(() => {
-    const demoMode = localStorage.getItem("demoMode");
-    if (demoMode === "true") {
-      // Auto-login in demo mode
+    // Check if FORCE_DEMO_MODE is enabled in config
+    if (FORCE_DEMO_MODE) {
+      console.log("%c🔧 FORCE_DEMO_MODE is enabled - Auto-logging in with demo credentials", "color: #f59e0b; font-weight: bold;");
       handleDemoLogin();
+      return;
     }
+
+    // If FORCE_DEMO_MODE is false, do NOT auto-login
+    // User must manually enter credentials for real API login
+    // This prevents the old demo mode localStorage from interfering
   }, []);
 
   const enableDemoMode = () => {
-    localStorage.setItem("demoMode", "true");
+    enableDemoModeGlobal();
     handleDemoLogin();
   };
 
   const handleDemoLogin = () => {
     toast.success("Logged in with Demo Mode - Using mock data");
-    // Store a demo token
+    // Store a demo token with admin role for testing
     localStorage.setItem("authToken", "demo-token-12345");
     localStorage.setItem("demoMode", "true");
     localStorage.setItem("userName", "demo.user");
-    onLoginSuccess("demo.user", true);
+    localStorage.setItem("userEmail", "demo.user@example.com");
+    localStorage.setItem("userRole", "admin"); // Set admin role for demo mode
+    onLoginSuccess("demo.user", true, "demo.user@example.com", "admin");
   };
 
   /**
@@ -146,19 +155,25 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
         throw new Error("No authentication token received from server");
       }
 
-      // Store JWT token
+      // Store JWT token, email, and role
       if (loginData.remember) {
         localStorage.setItem("authToken", authData.token);
         localStorage.setItem("userName", email.split('@')[0]);
+        localStorage.setItem("userEmail", email);
+        localStorage.setItem("userRole", authData.role || "user");
       } else {
         sessionStorage.setItem("authToken", authData.token);
         sessionStorage.setItem("userName", email.split('@')[0]);
+        sessionStorage.setItem("userEmail", email);
+        sessionStorage.setItem("userRole", authData.role || "user");
       }
 
       return {
         success: true,
         userName: email.split('@')[0],
         token: authData.token,
+        userEmail: email,
+        userRole: authData.role || "user",
       };
     } catch (error) {
       // Only log non-config errors
@@ -189,20 +204,29 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
       
       if (result.success) {
         toast.success("Login successful!");
-        onLoginSuccess(result.userName);
+        onLoginSuccess(result.userName, false, result.userEmail, result.userRole);
       } else {
         // Check if it's a configuration error (HTML response, 404, endpoint not found)
         const isConfigError = result.isConfigError;
 
         if (isConfigError) {
-          // Auto-enable demo mode on first API configuration error and log user in
-          toast.success("Demo Mode Activated - Login Successful!", {
-            description: "Using mock data. Configure API later from the banner."
-          });
-          enableDemoMode();
-          // Extract username from email
-          const userName = loginData.email.split('@')[0] || "User";
-          onLoginSuccess(userName, true); // Pass true for demo mode
+          // Only auto-enable demo mode if FORCE_DEMO_MODE is true
+          // When FORCE_DEMO_MODE is false, show proper error messages
+          if (FORCE_DEMO_MODE) {
+            toast.success("Demo Mode Activated - Login Successful!", {
+              description: "Using mock data. Configure API later from the banner."
+            });
+            enableDemoMode();
+            // Extract username from email
+            const userName = loginData.email.split('@')[0] || "User";
+            onLoginSuccess(userName, true); // Pass true for demo mode
+          } else {
+            // FORCE_DEMO_MODE is false - show API configuration error
+            toast.error("API Connection Failed", {
+              description: "Cannot connect to the backend server. Please check your API configuration."
+            });
+            console.error("API Configuration Error: Cannot reach backend server");
+          }
         } else {
           // Show regular error toast for auth failures
           toast.error(result.error || "Login failed. Please check your credentials.");

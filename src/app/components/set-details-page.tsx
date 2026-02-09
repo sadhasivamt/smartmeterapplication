@@ -13,8 +13,9 @@ import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../../config/api";
 interface SetDetailsPageProps {
   labId: string;
   labNumber: number;
-  setNumber: number;
+  cabinetId: string;
   manufacture: string;
+  variant: string;
   onBack: () => void;
   onBackToDashboard: () => void;
   userName: string;
@@ -32,11 +33,16 @@ interface DeviceInventory {
   host_ip: string;
   ch_type: string;
   is_active: boolean;
+  manufacturer?: string;
+  guid?: string;
+  device_state?: string;
+  device_model?: string;
+  device_type?: string;
 }
 
-type DeviceType = "CH" | "ESME" | "PPMID" | "GSME";
+type DeviceType = "CHF" | "ESME" | "PPMID" | "GSME" | "GPF";
 
-export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, isDemoMode }: SetDetailsPageProps) {
+export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, isDemoMode }: SetDetailsPageProps) {
   const [taskDescription, setTaskDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -48,7 +54,7 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
   });
   const [hanLogFormat, setHanLogFormat] = useState<string>("");
 
-  const devices: DeviceType[] = ["CH", "ESME", "PPMID", "GSME"];
+  const devices: DeviceType[] = ["CHF", "ESME", "PPMID", "GSME", "GPF"];
 
   // Format date and time to API format: "2023-09-28 19:04:35+0000"
   const formatDateTime = (date: string, time: string): string => {
@@ -145,14 +151,14 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
       // Create a new log collection entry
       const newLogEntry = {
         lab_id: labId,
-        cabinet_id: `a${String(setNumber).padStart(2, '0')}`,
+        cabinet_id: cabinetId,
         manufacture: manufacture,
         transaction_id: transactionId,
         log_collection_status: "Processing",
         log_collection_status_code: 105,
         start_time: formattedStartTime,
-        end_time: formattedStopTime,
-        submitted_time: formatDateTime(getCurrentDate(), getCurrentTime()),
+        stop_time: formattedStopTime,
+        submit_time: formatDateTime(getCurrentDate(), getCurrentTime()),
         task_desc: taskDescription.trim(),
       };
 
@@ -196,7 +202,7 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
       const requestPayload: any = {
         transaction_id: transactionId,
         lab_id: labId,
-        cabinet_id: `a${String(setNumber).padStart(2, '0')}`, // Format: a01, a02, etc.
+        cabinet_id: cabinetId,
         start_time: formattedStartTime,
         stop_time: formattedStopTime,
         task_desc: taskDescription.trim(),
@@ -291,20 +297,178 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
   const fetchDeviceInventory = async () => {
     setLoading(true);
     
-    // If in demo mode, use mock data
+    // If in demo mode, use mock data based on manufacturer and variant
     if (isDemoMode) {
       setTimeout(() => {
-        const mockInventory: DeviceInventory[] = devices.map((device, i) => ({
+        // Define device configurations for each manufacturer/variant combination
+        type ManufacturerVariantKey = string; // Format: "manufacturer_variant"
+        
+        interface DeviceConfig {
+          device_type: DeviceType;
+          manufacturer: string;
+          guid: string;
+          device_state: string;
+          device_model: string;
+        }
+        
+        // Device configurations mapped by manufacturer_variant
+        const deviceConfigurations: Record<ManufacturerVariantKey, DeviceConfig[]> = {
+          "toshiba_v2": [
+            {
+              device_type: "CHF",
+              manufacturer: "Toshiba Corporation",
+              guid: "00-1A-2B-3C-4D-5E-6F-01",
+              device_state: "Installed",
+              device_model: "CHF-T2000"
+            },
+            {
+              device_type: "ESME",
+              manufacturer: "EDMI Europe Limited",
+              guid: "00-0B-6B-64-1F-00-00-02",
+              device_state: "Installed",
+              device_model: "Dual Band"
+            },
+            {
+              device_type: "PPMID",
+              manufacturer: "Honeywell Inc.",
+              guid: "00-1C-7D-8E-9F-00-00-03",
+              device_state: "Installed",
+              device_model: "PPMID-T500"
+            },
+            {
+              device_type: "GSME",
+              manufacturer: "Itron Inc.",
+              guid: "00-2D-8E-9F-0A-00-00-04",
+              device_state: "Installed",
+              device_model: "OpenWay Riva"
+            }
+          ],
+          "edmi_v1": [
+            {
+              device_type: "CHF",
+              manufacturer: "EDMI Limited",
+              guid: "00-2B-3C-4D-5E-6F-7A-08",
+              device_state: "Commissioned",
+              device_model: "CHF-E1000"
+            },
+            {
+              device_type: "ESME",
+              manufacturer: "EDMI Europe Limited",
+              guid: "00-3C-4D-5E-6F-7A-8B-09",
+              device_state: "Commissioned",
+              device_model: "Mk10A"
+            },
+            {
+              device_type: "GPF",
+              manufacturer: "Landis+Gyr",
+              guid: "00-4D-5E-6F-7A-8B-9C-10",
+              device_state: "Commissioned",
+              device_model: "E650"
+            }
+          ],
+          "kaifa_v3": [
+            {
+              device_type: "ESME",
+              manufacturer: "Kaifa Technology",
+              guid: "00-5E-6F-7A-8B-9C-0D-11",
+              device_state: "Installed",
+              device_model: "MA120"
+            },
+            {
+              device_type: "PPMID",
+              manufacturer: "Honeywell Inc.",
+              guid: "00-6F-7A-8B-9C-0D-1E-12",
+              device_state: "Installed",
+              device_model: "PPMID-K300"
+            },
+            {
+              device_type: "GSME",
+              manufacturer: "Itron Inc.",
+              guid: "00-7A-8B-9C-0D-1E-2F-13",
+              device_state: "Installed",
+              device_model: "OpenWay Riva"
+            },
+            {
+              device_type: "GPF",
+              manufacturer: "Landis+Gyr",
+              guid: "00-8B-9C-0D-1E-2F-3A-14",
+              device_state: "Installed",
+              device_model: "E470"
+            }
+          ],
+          "landis_v2": [
+            {
+              device_type: "CHF",
+              manufacturer: "Landis+Gyr",
+              guid: "00-9C-0D-1E-2F-3A-4B-15",
+              device_state: "Installed",
+              device_model: "CHF-L2000"
+            },
+            {
+              device_type: "ESME",
+              manufacturer: "Landis+Gyr",
+              guid: "00-0D-1E-2F-3A-4B-5C-16",
+              device_state: "Installed",
+              device_model: "E360"
+            },
+            {
+              device_type: "GPF",
+              manufacturer: "Landis+Gyr",
+              guid: "00-1E-2F-3A-4B-5C-6D-17",
+              device_state: "Installed",
+              device_model: "E470"
+            }
+          ],
+          "vmo2_v1": [
+            {
+              device_type: "ESME",
+              manufacturer: "VMO2 Limited",
+              guid: "00-2F-3A-4B-5C-6D-7E-18",
+              device_state: "Not Installed",
+              device_model: "VMO2-E100"
+            },
+            {
+              device_type: "PPMID",
+              manufacturer: "VMO2 Limited",
+              guid: "00-3A-4B-5C-6D-7E-8F-19",
+              device_state: "Not Installed",
+              device_model: "PPMID-V200"
+            }
+          ]
+        };
+        
+        // Get the configuration key
+        const configKey = `${manufacture.toLowerCase()}_${variant.toLowerCase()}`;
+        
+        // Get device configs for this manufacturer/variant or use default
+        const deviceConfigs = deviceConfigurations[configKey] || [
+          {
+            device_type: "CHF",
+            manufacturer: "Generic Manufacturer",
+            guid: "00-00-00-00-00-00-00-00",
+            device_state: "Unknown",
+            device_model: "Unknown Model"
+          }
+        ];
+        
+        // Create device inventory from configs
+        const mockInventory: DeviceInventory[] = deviceConfigs.map((config, i) => ({
           lab_id: labId,
-          cabinet_id: `a${String(setNumber).padStart(2, '0')}`,
-          host_name: `${device}-host-${i + 1}`,
+          cabinet_id: cabinetId,
+          host_name: `${config.device_type}-host-${i + 1}`,
           host_ip: `192.168.1.${100 + i}`,
           ch_type: manufacture,
           is_active: true,
+          manufacturer: config.manufacturer,
+          guid: config.guid,
+          device_state: config.device_state,
+          device_model: config.device_model,
+          device_type: config.device_type
         }));
+        
         setDeviceInventory(mockInventory);
         setLoading(false);
-        toast.success("Device inventory loaded (Demo Mode)");
+        toast.success(`Device inventory loaded for ${manufacture.toUpperCase()} ${variant.toUpperCase()} (Demo Mode)`);
       }, 500);
       return;
     }
@@ -406,7 +570,7 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
             </div>
           </div>
 
-          {/* Back Button and Lab/Set Info */}
+          {/* Back Button and Lab/Cabinet Info */}
           <div className="max-w-6xl mx-auto mb-6 mt-20">
             <div className="bg-white rounded-lg shadow-sm p-4">
               <div className="flex items-center gap-4">
@@ -416,7 +580,7 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
                 </Button>
                 <div className="flex-1">
                   <p className="text-sm text-gray-500">
-                    Lab {labNumber} - Set {setNumber}
+                    Lab {labNumber} - Cabinet {cabinetId.toUpperCase()}
                   </p>
                 </div>
               </div>
@@ -437,15 +601,43 @@ export function SetDetailsPage({ labId, labNumber, setNumber, manufacture, onBac
                     <Loader2 className="size-8 animate-spin text-blue-600" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {devices.map((device) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {deviceInventory.map((device, index) => (
                       <div
-                        key={device}
-                        className="p-6 rounded-lg border-2 border-blue-600 bg-blue-50"
+                        key={index}
+                        className="p-4 rounded-lg border-2 border-blue-600 bg-blue-50"
                       >
-                        <div className="flex flex-col items-center gap-3">
-                          <Cpu className="size-8 text-blue-600" />
-                          <span className="font-semibold">{device}</span>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center gap-3">
+                            <Cpu className="size-8 text-blue-600 flex-shrink-0" />
+                            <span className="font-semibold text-lg">{device.device_type || device.host_name.split('-')[0]}</span>
+                          </div>
+                          <div className="space-y-1.5 text-sm">
+                            {device.manufacturer && (
+                              <div>
+                                <span className="text-gray-600">Manufacturer:</span>
+                                <p className="font-medium text-gray-900">{device.manufacturer}</p>
+                              </div>
+                            )}
+                            {device.guid && (
+                              <div>
+                                <span className="text-gray-600">GUID:</span>
+                                <p className="font-medium text-gray-900 break-all">{device.guid}</p>
+                              </div>
+                            )}
+                            {device.device_state && (
+                              <div>
+                                <span className="text-gray-600">Device State:</span>
+                                <p className="font-medium text-gray-900">{device.device_state}</p>
+                              </div>
+                            )}
+                            {device.device_model && (
+                              <div>
+                                <span className="text-gray-600">Device Model:</span>
+                                <p className="font-medium text-gray-900">{device.device_model}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -10,6 +10,9 @@ import { ApiConfigDialog } from "./components/api-config-dialog";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../config/api";
+import { disableDemoMode } from "../utils/demoMode";
+import { FORCE_DEMO_MODE, isDemoMode as checkDemoMode, getDemoModeStatus } from "../config/demo";
+import "../utils/clearDemoMode"; // Import utility to make functions available globally
 
 type Page = "auth" | "dashboard" | "labs" | "setDetails" | "admin";
 
@@ -20,8 +23,9 @@ export default function App() {
   const [userRole, setUserRole] = useState("");
   const [selectedLab, setSelectedLab] = useState<number>(0);
   const [selectedLabId, setSelectedLabId] = useState<string>("");
-  const [selectedSet, setSelectedSet] = useState<number>(0);
+  const [selectedCabinetId, setSelectedCabinetId] = useState<string>("");
   const [selectedManufacture, setSelectedManufacture] = useState("");
+  const [selectedVariant, setSelectedVariant] = useState("");
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -29,17 +33,68 @@ export default function App() {
   // Set page title
   document.title = "Automated Logging Solution";
 
+  // Log demo mode configuration status for developers
+  useEffect(() => {
+    if (FORCE_DEMO_MODE) {
+      console.log(`%c✅ ${getDemoModeStatus()}`, "color: #10b981; font-weight: bold; font-size: 14px;");
+      console.info("%cℹ️  Demo Mode is Active", "color: #3b82f6; font-weight: bold;");
+      console.log("%c   • All API calls will use mock data", "color: #64748b;");
+      console.log("%c   • No backend server required", "color: #64748b;");
+      console.log("%c   • Full functionality with test data", "color: #64748b;");
+    } else {
+      console.log(`%c🔧 ${getDemoModeStatus()}`, "color: #2563eb; font-weight: bold; font-size: 14px;");
+      console.info("%cℹ️  Real API Mode is Active", "color: #3b82f6; font-weight: bold;");
+      console.log("%c   • Application will use real API endpoints", "color: #64748b;");
+      console.log("%c   • Backend server required", "color: #64748b;");
+      
+      // Check if there's lingering demo mode data in localStorage
+      const runtimeDemoMode = localStorage.getItem("demoMode");
+      if (runtimeDemoMode === "true") {
+        console.info("%cℹ️  Cleanup Needed", "color: #f59e0b; font-weight: bold;");
+        console.log("%c   Demo mode data found in localStorage", "color: #64748b;");
+        console.log("%c   Run: clearDemoModeData() then refresh", "color: #64748b;");
+      }
+    }
+  }, []);
+
   /**
    * Check for existing authentication on app load
    */
   useEffect(() => {
     const restoreAuthState = () => {
+      // If FORCE_DEMO_MODE is false, clear any lingering demo mode data
+      if (!FORCE_DEMO_MODE) {
+        const demoMode = localStorage.getItem("demoMode");
+        if (demoMode === "true") {
+          // Clear demo mode data to prevent conflicts
+          console.log("%c🧹 Auto-cleaning demo mode data...", "color: #10b981; font-weight: bold;");
+          console.log("%c   FORCE_DEMO_MODE is false - clearing localStorage", "color: #64748b;");
+          localStorage.removeItem("demoMode");
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("userName");
+          localStorage.removeItem("userEmail");
+          localStorage.removeItem("userRole");
+          sessionStorage.removeItem("authToken");
+          sessionStorage.removeItem("userName");
+          sessionStorage.removeItem("userEmail");
+          sessionStorage.removeItem("userRole");
+          console.log("%c✅ Demo mode data cleared successfully!", "color: #10b981; font-weight: bold;");
+          console.log("%c   Ready for real API authentication", "color: #64748b;");
+          setCurrentPage("auth");
+          setIsCheckingAuth(false);
+          return;
+        }
+      }
+
       // Check for auth token in storage
       const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
       const storedUserEmail = localStorage.getItem("userEmail") || sessionStorage.getItem("userEmail");
       const storedUserRole = localStorage.getItem("userRole") || sessionStorage.getItem("userRole");
-      const storedDemoMode = localStorage.getItem("demoMode") === "true";
+      
+      // Check demo mode: FORCE_DEMO_MODE overrides localStorage
+      const storedDemoMode = FORCE_DEMO_MODE || (localStorage.getItem("demoMode") === "true");
+      
       const storedPage = (localStorage.getItem("currentPage") || sessionStorage.getItem("currentPage")) as Page;
 
       if (token && storedUserName) {
@@ -67,6 +122,37 @@ export default function App() {
   }, []);
 
   /**
+   * Listen for demo mode changes from localStorage
+   * This ensures demo mode state is synchronized across all components
+   */
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "demoMode") {
+        // FORCE_DEMO_MODE always takes precedence
+        const newDemoMode = FORCE_DEMO_MODE || (e.newValue === "true");
+        setIsDemoMode(newDemoMode);
+      }
+    };
+
+    // Listen for storage events from other tabs/windows
+    window.addEventListener("storage", handleStorageChange);
+
+    // Also set up a custom event listener for same-tab changes
+    const handleCustomDemoModeChange = (e: CustomEvent) => {
+      // FORCE_DEMO_MODE always takes precedence
+      const newDemoMode = FORCE_DEMO_MODE || e.detail.demoMode;
+      setIsDemoMode(newDemoMode);
+    };
+
+    window.addEventListener("demoModeChange" as any, handleCustomDemoModeChange as any);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("demoModeChange" as any, handleCustomDemoModeChange as any);
+    };
+  }, []);
+
+  /**
    * Save current page to storage whenever it changes
    */
   useEffect(() => {
@@ -84,14 +170,22 @@ export default function App() {
     }
   }, [currentPage, isCheckingAuth]);
 
-  const handleLoginSuccess = (name: string, demoMode: boolean = false) => {
+  const handleLoginSuccess = (name: string, demoMode: boolean = false, email?: string, role?: string) => {
     setUserName(name);
+    setUserEmail(email || "");
+    setUserRole(role || "");
     setIsDemoMode(demoMode);
     setCurrentPage("dashboard");
     
     // Persist user data to storage
     const storage = localStorage.getItem("authToken") ? localStorage : sessionStorage;
     storage.setItem("userName", name);
+    if (email) {
+      storage.setItem("userEmail", email);
+    }
+    if (role) {
+      storage.setItem("userRole", role);
+    }
     storage.setItem("currentPage", "dashboard");
     if (demoMode) {
       storage.setItem("demoMode", "true");
@@ -107,17 +201,21 @@ export default function App() {
       setCurrentPage("auth");
       setUserName("");
       setUserEmail("");
+      setUserRole("");
       setSelectedLab(0);
       setSelectedLabId("");
-      setSelectedSet(0);
+      setSelectedCabinetId("");
       setSelectedManufacture("");
       setIsDemoMode(false);
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
-      localStorage.removeItem("demoMode");
+      disableDemoMode(); // Use global function to disable demo mode and dispatch event
       localStorage.removeItem("userEmail");
+      localStorage.removeItem("userRole");
       localStorage.removeItem("userName");
       sessionStorage.removeItem("userName");
+      sessionStorage.removeItem("userEmail");
+      sessionStorage.removeItem("userRole");
       localStorage.removeItem("currentPage");
       sessionStorage.removeItem("currentPage");
       toast.success("Logged out successfully (Demo Mode)");
@@ -188,17 +286,21 @@ export default function App() {
     setCurrentPage("auth");
     setUserName("");
     setUserEmail("");
+    setUserRole("");
     setSelectedLab(0);
     setSelectedLabId("");
-    setSelectedSet(0);
+    setSelectedCabinetId("");
     setSelectedManufacture("");
     setIsDemoMode(false);
     localStorage.removeItem("authToken");
     sessionStorage.removeItem("authToken");
-    localStorage.removeItem("demoMode");
+    disableDemoMode(); // Use global function to disable demo mode and dispatch event
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
     sessionStorage.removeItem("userName");
+    sessionStorage.removeItem("userEmail");
+    sessionStorage.removeItem("userRole");
     localStorage.removeItem("currentPage");
     sessionStorage.removeItem("currentPage");
   };
@@ -215,11 +317,12 @@ export default function App() {
     setCurrentPage(page);
   };
 
-  const handleSelectSet = (labId: string, labNumber: number, setNumber: number, manufacture: string) => {
+  const handleSelectSet = (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string) => {
     setSelectedLabId(labId);
     setSelectedLab(labNumber);
-    setSelectedSet(setNumber);
+    setSelectedCabinetId(cabinetId);
     setSelectedManufacture(manufacture);
+    setSelectedVariant(variant);
     setCurrentPage("setDetails");
   };
 
@@ -275,8 +378,9 @@ export default function App() {
         <SetDetailsPage
           labId={selectedLabId}
           labNumber={selectedLab}
-          setNumber={selectedSet}
+          cabinetId={selectedCabinetId}
           manufacture={selectedManufacture}
+          variant={selectedVariant}
           onBack={handleBackToLabs}
           onBackToDashboard={handleBackToDashboard}
           userName={userName}

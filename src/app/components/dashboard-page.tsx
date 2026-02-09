@@ -177,7 +177,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       return;
     }
 
-    // MOCK API CALL - Remove this and uncomment real API call below
+    /* MOCK API CALL - Comment this out when using real API
     setTimeout(() => {
       // Mock data with new API response structure
       const mockData: LogCollectionsResponse = {
@@ -211,8 +211,9 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
         toast.success("Data refreshed successfully");
       }
     }, 1000);
+    */
 
-    /* REAL API CALL - Uncomment when connecting to actual backend
+    // REAL API CALL
     try {
       const token = getAuthToken();
       
@@ -279,7 +280,6 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     } finally {
       setIsLoading(false);
     }
-    */
   };
 
   /**
