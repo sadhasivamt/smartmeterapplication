@@ -701,12 +701,7 @@ export function LabsPage({ onLogout, userName, onSelectSet, onNavigateToDashboar
     const lab = labs.find((l) => l.lab_id === selectedLab);
     const set = sets.find((s) => s.number === selectedSet);
     
-    if (!selectedCabinetId) {
-      toast.error("Please select a cabinet before opening the set");
-      return;
-    }
-    
-    if (lab && set && selectedCabinetId) {
+    if (lab && set) {
       onSelectSet(lab.lab_id, lab.number, set.number, set.manufacture, selectedCabinetId);
     }
   };
