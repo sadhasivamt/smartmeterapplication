@@ -7,10 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import { toast } from "sonner";
-import { ApiConfigDialog } from "./api-config-dialog";
 import { API_ENDPOINTS, getApiUrl } from "../../config/api";
-import { enableDemoMode as enableDemoModeGlobal, isDemoModeEnabled } from "../../utils/demoMode";
-import { FORCE_DEMO_MODE, DEMO_USER } from "../../config/demo";
 
 interface AuthPageProps {
   onLoginSuccess: (userName: string, isDemoMode?: boolean, userEmail?: string, userRole?: string) => void;
@@ -27,39 +24,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
     password: "", 
     confirmPassword: "" 
   });
-  const [showApiConfigDialog, setShowApiConfigDialog] = useState(false);
-  const [apiError, setApiError] = useState({ endpoint: "", message: "" });
-
-  // Check if demo mode was previously enabled
-  useEffect(() => {
-    // Check if FORCE_DEMO_MODE is enabled in config
-    if (FORCE_DEMO_MODE) {
-      console.log("%c🔧 FORCE_DEMO_MODE is enabled - Auto-logging in with demo credentials", "color: #f59e0b; font-weight: bold;");
-      handleDemoLogin();
-      return;
-    }
-
-    // If FORCE_DEMO_MODE is false, do NOT auto-login
-    // User must manually enter credentials for real API login
-    // This prevents the old demo mode localStorage from interfering
-  }, []);
-
-  const enableDemoMode = () => {
-    enableDemoModeGlobal();
-    handleDemoLogin();
-  };
-
-  const handleDemoLogin = () => {
-    toast.success("Logged in with Demo Mode - Using mock data");
-    // Store a demo token with admin role for testing
-    localStorage.setItem("authToken", "demo-token-12345");
-    localStorage.setItem("demoMode", "true");
-    localStorage.setItem("userName", "demo.user");
-    localStorage.setItem("userEmail", "demo.user@example.com");
-    localStorage.setItem("userRole", "admin"); // Set admin role for demo mode
-    onLoginSuccess("demo.user", true, "demo.user@example.com", "admin");
-  };
-
+  
   /**
    * Authenticate user with the backend API
    * Makes an HTTPS call to verify username and password
@@ -210,23 +175,10 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
         const isConfigError = result.isConfigError;
 
         if (isConfigError) {
-          // Only auto-enable demo mode if FORCE_DEMO_MODE is true
-          // When FORCE_DEMO_MODE is false, show proper error messages
-          if (FORCE_DEMO_MODE) {
-            toast.success("Demo Mode Activated - Login Successful!", {
-              description: "Using mock data. Configure API later from the banner."
-            });
-            enableDemoMode();
-            // Extract username from email
-            const userName = loginData.email.split('@')[0] || "User";
-            onLoginSuccess(userName, true); // Pass true for demo mode
-          } else {
-            // FORCE_DEMO_MODE is false - show API configuration error
-            toast.error("API Connection Failed", {
-              description: "Cannot connect to the backend server. Please check your API configuration."
-            });
-            console.error("API Configuration Error: Cannot reach backend server");
-          }
+          // Show user-friendly toast for API connection issues
+          toast.error("API Connection Failed", {
+            description: "Cannot connect to the backend server. Please check your network connection or try again later."
+          });
         } else {
           // Show regular error toast for auth failures
           toast.error(result.error || "Login failed. Please check your credentials.");
@@ -467,15 +419,6 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
           </div>
         </div>
       </div>
-
-      {/* API Configuration Dialog */}
-      <ApiConfigDialog
-        isOpen={showApiConfigDialog}
-        onClose={() => setShowApiConfigDialog(false)}
-        onEnableDemoMode={enableDemoMode}
-        endpoint={apiError.endpoint}
-        errorMessage={apiError.message}
-      />
     </div>
   );
 }

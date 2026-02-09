@@ -8,7 +8,6 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
-import { FORCE_DEMO_MODE } from "../../config/demo";
 
 interface ApiConfigDialogProps {
   isOpen: boolean;

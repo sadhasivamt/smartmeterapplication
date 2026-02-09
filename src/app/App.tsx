@@ -5,14 +5,9 @@ import { DashboardPage } from "./components/dashboard-page";
 import { LabsPage } from "./components/labs-page";
 import { SetDetailsPage } from "./components/set-details-page";
 import { UsersPage } from "./components/users-page";
-import { DemoModeBanner } from "./components/demo-mode-banner";
-import { ApiConfigDialog } from "./components/api-config-dialog";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../config/api";
-import { disableDemoMode } from "../utils/demoMode";
-import { FORCE_DEMO_MODE, isDemoMode as checkDemoMode, getDemoModeStatus } from "../config/demo";
-import "../utils/clearDemoMode"; // Import utility to make functions available globally
 
 type Page = "auth" | "dashboard" | "labs" | "setDetails" | "admin";
 
@@ -26,83 +21,31 @@ export default function App() {
   const [selectedCabinetId, setSelectedCabinetId] = useState<string>("");
   const [selectedManufacture, setSelectedManufacture] = useState("");
   const [selectedVariant, setSelectedVariant] = useState("");
-  const [isDemoMode, setIsDemoMode] = useState(false);
-  const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Set page title
   document.title = "Automated Logging Solution";
-
-  // Log demo mode configuration status for developers
-  useEffect(() => {
-    if (FORCE_DEMO_MODE) {
-      console.log(`%c✅ ${getDemoModeStatus()}`, "color: #10b981; font-weight: bold; font-size: 14px;");
-      console.info("%cℹ️  Demo Mode is Active", "color: #3b82f6; font-weight: bold;");
-      console.log("%c   • All API calls will use mock data", "color: #64748b;");
-      console.log("%c   • No backend server required", "color: #64748b;");
-      console.log("%c   • Full functionality with test data", "color: #64748b;");
-    } else {
-      console.log(`%c🔧 ${getDemoModeStatus()}`, "color: #2563eb; font-weight: bold; font-size: 14px;");
-      console.info("%cℹ️  Real API Mode is Active", "color: #3b82f6; font-weight: bold;");
-      console.log("%c   • Application will use real API endpoints", "color: #64748b;");
-      console.log("%c   • Backend server required", "color: #64748b;");
-      
-      // Check if there's lingering demo mode data in localStorage
-      const runtimeDemoMode = localStorage.getItem("demoMode");
-      if (runtimeDemoMode === "true") {
-        console.info("%cℹ️  Cleanup Needed", "color: #f59e0b; font-weight: bold;");
-        console.log("%c   Demo mode data found in localStorage", "color: #64748b;");
-        console.log("%c   Run: clearDemoModeData() then refresh", "color: #64748b;");
-      }
-    }
-  }, []);
 
   /**
    * Check for existing authentication on app load
    */
   useEffect(() => {
     const restoreAuthState = () => {
-      // If FORCE_DEMO_MODE is false, clear any lingering demo mode data
-      if (!FORCE_DEMO_MODE) {
-        const demoMode = localStorage.getItem("demoMode");
-        if (demoMode === "true") {
-          // Clear demo mode data to prevent conflicts
-          console.log("%c🧹 Auto-cleaning demo mode data...", "color: #10b981; font-weight: bold;");
-          console.log("%c   FORCE_DEMO_MODE is false - clearing localStorage", "color: #64748b;");
-          localStorage.removeItem("demoMode");
-          localStorage.removeItem("authToken");
-          localStorage.removeItem("userName");
-          localStorage.removeItem("userEmail");
-          localStorage.removeItem("userRole");
-          sessionStorage.removeItem("authToken");
-          sessionStorage.removeItem("userName");
-          sessionStorage.removeItem("userEmail");
-          sessionStorage.removeItem("userRole");
-          console.log("%c✅ Demo mode data cleared successfully!", "color: #10b981; font-weight: bold;");
-          console.log("%c   Ready for real API authentication", "color: #64748b;");
-          setCurrentPage("auth");
-          setIsCheckingAuth(false);
-          return;
-        }
-      }
-
       // Check for auth token in storage
       const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
       const storedUserEmail = localStorage.getItem("userEmail") || sessionStorage.getItem("userEmail");
       const storedUserRole = localStorage.getItem("userRole") || sessionStorage.getItem("userRole");
       
-      // Check demo mode: FORCE_DEMO_MODE overrides localStorage
-      const storedDemoMode = FORCE_DEMO_MODE || (localStorage.getItem("demoMode") === "true");
-      
       const storedPage = (localStorage.getItem("currentPage") || sessionStorage.getItem("currentPage")) as Page;
 
+      // IMPORTANT: Only restore session if we have a valid token AND username
+      // For real API mode, we should validate the token is still valid
       if (token && storedUserName) {
         // Restore user state
         setUserName(storedUserName);
         setUserEmail(storedUserEmail || "");
         setUserRole(storedUserRole || "");
-        setIsDemoMode(storedDemoMode);
         
         // Restore the page user was on, default to dashboard
         if (storedPage && storedPage !== "auth") {
@@ -111,7 +54,17 @@ export default function App() {
           setCurrentPage("dashboard");
         }
       } else {
-        // No valid session, stay on auth page
+        // No valid session, clear all auth data and stay on auth page
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("currentPage");
+        sessionStorage.removeItem("authToken");
+        sessionStorage.removeItem("userName");
+        sessionStorage.removeItem("userEmail");
+        sessionStorage.removeItem("userRole");
+        sessionStorage.removeItem("currentPage");
         setCurrentPage("auth");
       }
 
@@ -119,37 +72,6 @@ export default function App() {
     };
 
     restoreAuthState();
-  }, []);
-
-  /**
-   * Listen for demo mode changes from localStorage
-   * This ensures demo mode state is synchronized across all components
-   */
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "demoMode") {
-        // FORCE_DEMO_MODE always takes precedence
-        const newDemoMode = FORCE_DEMO_MODE || (e.newValue === "true");
-        setIsDemoMode(newDemoMode);
-      }
-    };
-
-    // Listen for storage events from other tabs/windows
-    window.addEventListener("storage", handleStorageChange);
-
-    // Also set up a custom event listener for same-tab changes
-    const handleCustomDemoModeChange = (e: CustomEvent) => {
-      // FORCE_DEMO_MODE always takes precedence
-      const newDemoMode = FORCE_DEMO_MODE || e.detail.demoMode;
-      setIsDemoMode(newDemoMode);
-    };
-
-    window.addEventListener("demoModeChange" as any, handleCustomDemoModeChange as any);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("demoModeChange" as any, handleCustomDemoModeChange as any);
-    };
   }, []);
 
   /**
@@ -174,7 +96,6 @@ export default function App() {
     setUserName(name);
     setUserEmail(email || "");
     setUserRole(role || "");
-    setIsDemoMode(demoMode);
     setCurrentPage("dashboard");
     
     // Persist user data to storage
@@ -187,41 +108,9 @@ export default function App() {
       storage.setItem("userRole", role);
     }
     storage.setItem("currentPage", "dashboard");
-    if (demoMode) {
-      storage.setItem("demoMode", "true");
-    }
   };
 
   const handleLogout = async () => {
-    // Get the current demo mode status before clearing
-    const currentDemoMode = isDemoMode;
-    
-    // If in demo mode, skip API call and just clear session
-    if (currentDemoMode) {
-      setCurrentPage("auth");
-      setUserName("");
-      setUserEmail("");
-      setUserRole("");
-      setSelectedLab(0);
-      setSelectedLabId("");
-      setSelectedCabinetId("");
-      setSelectedManufacture("");
-      setIsDemoMode(false);
-      localStorage.removeItem("authToken");
-      sessionStorage.removeItem("authToken");
-      disableDemoMode(); // Use global function to disable demo mode and dispatch event
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userName");
-      sessionStorage.removeItem("userName");
-      sessionStorage.removeItem("userEmail");
-      sessionStorage.removeItem("userRole");
-      localStorage.removeItem("currentPage");
-      sessionStorage.removeItem("currentPage");
-      toast.success("Logged out successfully (Demo Mode)");
-      return;
-    }
-
     // Get the token before clearing
     const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
@@ -291,10 +180,8 @@ export default function App() {
     setSelectedLabId("");
     setSelectedCabinetId("");
     setSelectedManufacture("");
-    setIsDemoMode(false);
     localStorage.removeItem("authToken");
     sessionStorage.removeItem("authToken");
-    disableDemoMode(); // Use global function to disable demo mode and dispatch event
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
@@ -334,21 +221,8 @@ export default function App() {
     setCurrentPage("dashboard");
   };
 
-  const handleExitDemoMode = () => {
-    setShowConfigDialog(true);
-  };
-
-  const handleCloseConfigDialog = () => {
-    setShowConfigDialog(false);
-  };
-
   return (
     <>
-      {/* Demo Mode Banner - Hidden per user request */}
-      {/* {isDemoMode && currentPage !== "auth" && (
-        <DemoModeBanner onExitDemo={handleExitDemoMode} />
-      )} */}
-
       {currentPage === "auth" && (
         <AuthPage onLoginSuccess={handleLoginSuccess} />
       )}
@@ -359,7 +233,6 @@ export default function App() {
           userName={userName}
           onNavigateToLabs={handleNavigateToLabs}
           onNavigate={handleNavigate}
-          isDemoMode={isDemoMode}
         />
       )}
       
@@ -370,7 +243,6 @@ export default function App() {
           onSelectSet={handleSelectSet}
           onNavigateToDashboard={handleBackToDashboard}
           onNavigate={handleNavigate}
-          isDemoMode={isDemoMode}
         />
       )}
       
@@ -387,7 +259,6 @@ export default function App() {
           onLogout={handleLogout}
           onNavigateToLabs={handleNavigateToLabs}
           onNavigate={handleNavigate}
-          isDemoMode={isDemoMode}
         />
       )}
 
@@ -398,17 +269,8 @@ export default function App() {
           userRole={userRole}
           onLogout={handleLogout}
           onNavigate={handleNavigate}
-          isDemoMode={isDemoMode}
         />
       )}
-      
-      {/* Config Dialog when exiting demo mode */}
-      <ApiConfigDialog
-        isOpen={showConfigDialog}
-        onClose={handleCloseConfigDialog}
-        endpoint="/log-auth/login"
-        errorMessage="Demo Mode is currently active. To connect to your real API, please configure your API endpoint using one of the options below."
-      />
       
       <Toaster />
     </>
