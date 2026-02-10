@@ -35,9 +35,6 @@ export const API_ENDPOINTS = {
   LABS:
     import.meta.env.VITE_API_LABS ||
     "/device-inventory/get_lab_inventory",
-  LAB_DETAILS:
-    import.meta.env.VITE_API_LAB_DETAILS ||
-    "/device-inventory/get_lab_details",
   LLS_INVENTORY:
     import.meta.env.VITE_API_LLS_INVENTORY ||
     "/device-inventory/get_lls_inventory",

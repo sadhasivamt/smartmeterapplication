@@ -89,6 +89,7 @@ interface MeterDevice {
 interface LLSCabinetInventory {
   cabinet_id: string;
   ch_type: string | null;
+  ch_variant?: string | null; // Added to support variant from LLS
   host_ip: string;
   host_name: string;
   is_active: boolean;
@@ -200,13 +201,10 @@ export function LabsPage({
         timestamp: new Date().toISOString(),
       });
 
-      const response = await fetch(
-        labsUrl,
-        {
-          method: "GET",
-          headers: getAuthHeaders(token),
-        },
-      );
+      const response = await fetch(labsUrl, {
+        method: "GET",
+        headers: getAuthHeaders(token),
+      });
 
       console.log("✅ API Response - GET LABS:", {
         url: labsUrl,
@@ -312,7 +310,7 @@ export function LabsPage({
 
   /**
    * Fetch lab details (cabinet data) when lab is selected
-   * Then fetch LLS inventory to get device_state for color coding
+   * Uses LLS_INVENTORY to get device_state for color coding
    */
   const fetchLabDetails = async (
     labId: string,
@@ -323,7 +321,7 @@ export function LabsPage({
     setChManufactures([]); // Clear previous manufactures
     setChVariants([]); // Clear previous variants
 
-    // Real API call - First fetch lab details
+    // Real API call - Fetch LLS inventory
     try {
       const token = getAuthToken();
 
@@ -335,194 +333,98 @@ export function LabsPage({
         return;
       }
 
-      const labDetailsUrl = getApiUrl(API_ENDPOINTS.LAB_DETAILS, { lab_id: labId });
-      console.log("🚀 API Call - GET LAB_DETAILS:", {
-        url: labDetailsUrl,
-        method: "GET",
-        params: { lab_id: labId },
+      const llsUrl = getApiUrl(API_ENDPOINTS.LLS_INVENTORY);
+      const llsBody = {
+        lab_id: labId,
+        with_meter_set_inventory: true,
+      };
+
+      console.log("🚀 API Call - POST LLS_INVENTORY:", {
+        url: llsUrl,
+        method: "POST",
+        body: llsBody,
         timestamp: new Date().toISOString(),
       });
 
-      const response = await fetch(
-        labDetailsUrl,
-        {
-          method: "GET",
-          headers: getAuthHeaders(token),
-        },
-      );
+      const llsResponse = await fetch(llsUrl, {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(llsBody),
+      });
 
-      console.log("✅ API Response - GET LAB_DETAILS:", {
-        url: labDetailsUrl,
-        status: response.status,
-        statusText: response.statusText,
+      console.log("✅ API Response - POST LLS_INVENTORY:", {
+        url: llsUrl,
+        status: llsResponse.status,
+        statusText: llsResponse.statusText,
         timestamp: new Date().toISOString(),
       });
 
-      // Check if response is JSON by checking content-type header
-      const contentType = response.headers.get("content-type");
-      const isJson =
-        contentType && contentType.includes("application/json");
+      const llsContentType =
+        llsResponse.headers.get("content-type");
+      const llsIsJson =
+        llsContentType &&
+        llsContentType.includes("application/json");
 
       // Handle specific error codes
-      if (response.status === 401) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Unauthorized - Please login again",
-          );
-        }
-        throw new Error("Invalid or missing token");
+      if (llsResponse.status === 401) {
+        throw new Error("Unauthorized - Please login again");
       }
 
-      if (response.status === 404) {
+      if (llsResponse.status === 404) {
         throw new Error(
-          "Lab details endpoint not found. Please check your API configuration.",
+          "LLS Inventory endpoint not found. Please check your API configuration.",
         );
       }
 
-      if (response.status === 422) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail || "Invalid request parameters",
-          );
-        }
-        throw new Error("Invalid request parameters");
+      if (llsResponse.status >= 500) {
+        throw new Error("Server error occurred. Please try again later.");
       }
 
-      if (response.status >= 500 || response.status === 400) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail ||
-              errorData.message ||
-              "API error occurred",
-          );
-        }
+      if (!llsResponse.ok) {
         throw new Error(
-          "Server error occurred. Please try again later.",
+          `Failed to fetch LLS inventory (Status: ${llsResponse.status})`,
         );
       }
 
-      if (!response.ok) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Failed to fetch lab details",
-          );
-        }
-        throw new Error(
-          `Failed to fetch lab details (Status: ${response.status})`,
-        );
-      }
-
-      // Only try to parse JSON if content-type is JSON
-      if (!isJson) {
+      if (!llsIsJson) {
         throw new Error(
           "Invalid response from server. Expected JSON but received HTML.",
         );
       }
 
-      const cabinetDetails: CabinetData[] =
-        await response.json();
+      const llsData: LLSCabinetInventory[] = await llsResponse.json();
 
-      // Now fetch LLS inventory to get device_state information
-      try {
-        const llsUrl = getApiUrl(API_ENDPOINTS.LLS_INVENTORY);
-        const llsBody = {
-          lab_id: labId,
-          with_meter_set_inventory: true,
-        };
+      // Transform LLS data to CabinetData format
+      const transformedCabinetData: CabinetData[] = llsData.map(
+        (lls) => {
+          // Check if any device in meter_set is commissioned
+          const hasCommissionedDevice =
+            lls.meter_set?.some(
+              (device) =>
+                device.device_state?.toLowerCase() === "commissioned",
+            ) || false;
 
-        console.log("🚀 API Call - POST LLS_INVENTORY:", {
-          url: llsUrl,
-          method: "POST",
-          body: llsBody,
-          timestamp: new Date().toISOString(),
-        });
+          // Get first device state or null
+          const deviceState = lls.meter_set?.[0]?.device_state || null;
 
-        const llsResponse = await fetch(
-          llsUrl,
-          {
-            method: "POST",
-            headers: getAuthHeaders(token),
-            body: JSON.stringify(llsBody),
-          },
-        );
+          return {
+            cabinet_id: lls.cabinet_id,
+            ch_type: lls.ch_type,
+            ch_variant: lls.ch_variant || null,
+            lab_id: lls.lab_id,
+            is_active: lls.is_active ? "true" : "false",
+            device_state: deviceState,
+            has_commissioned_device: hasCommissionedDevice,
+          };
+        },
+      );
 
-        console.log("✅ API Response - POST LLS_INVENTORY:", {
-          url: llsUrl,
-          status: llsResponse.status,
-          statusText: llsResponse.statusText,
-          timestamp: new Date().toISOString(),
-        });
-
-        const llsContentType =
-          llsResponse.headers.get("content-type");
-        const llsIsJson =
-          llsContentType &&
-          llsContentType.includes("application/json");
-
-        if (llsResponse.ok && llsIsJson) {
-          const llsData: LLSCabinetInventory[] =
-            await llsResponse.json();
-
-          // Merge LLS data with cabinet details to add device_state information
-          const mergedCabinetData = cabinetDetails.map(
-            (cabinet) => {
-              // Find matching LLS inventory entry
-              const llsEntry = llsData.find(
-                (lls) =>
-                  lls.cabinet_id === cabinet.cabinet_id &&
-                  lls.ch_type === cabinet.ch_type,
-              );
-
-              if (llsEntry) {
-                // Check if any device in meter_set is commissioned
-                const hasCommissionedDevice =
-                  llsEntry.meter_set?.some(
-                    (device) =>
-                      device.device_state?.toLowerCase() ===
-                      "commissioned",
-                  ) || false;
-
-                // Get first device state or null
-                const deviceState =
-                  llsEntry.meter_set?.[0]?.device_state || null;
-
-                return {
-                  ...cabinet,
-                  device_state: deviceState,
-                  has_commissioned_device:
-                    hasCommissionedDevice,
-                };
-              }
-
-              return cabinet;
-            },
-          );
-
-          setCabinetData(mergedCabinetData);
-        } else {
-          // If LLS inventory fails, just use cabinet details without device_state
-          setCabinetData(cabinetDetails);
-        }
-      } catch (llsError) {
-        console.warn(
-          "Failed to fetch LLS inventory, using cabinet details only:",
-          llsError,
-        );
-        setCabinetData(cabinetDetails);
-      }
+      setCabinetData(transformedCabinetData);
 
       // Extract unique manufacturers from cabinet data
       const uniqueManufactures = Array.from(
         new Set(
-          cabinetDetails
+          transformedCabinetData
             .map((cabinet) => cabinet.ch_type)
             .filter((ch_type) => ch_type !== null),
         ),
@@ -540,7 +442,7 @@ export function LabsPage({
       // Extract unique variants from cabinet data
       const uniqueVariants = Array.from(
         new Set(
-          cabinetDetails
+          transformedCabinetData
             .map((cabinet) => cabinet.ch_variant)
             .filter((ch_variant) => ch_variant !== null),
         ),
@@ -552,6 +454,19 @@ export function LabsPage({
       }));
 
       setChVariants(variantsList);
+      
+      // Generate sets from cabinet data
+      const generatedSets: Set[] = transformedCabinetData.map((cabinet, index) => ({
+        id: `${cabinet.cabinet_id}-${cabinet.ch_type}`,
+        name: cabinet.cabinet_id,
+        number: index + 1,
+        manufacture: cabinet.ch_type || "",
+        variant: cabinet.ch_variant || "",
+        signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
+        cabinet_id: cabinet.cabinet_id,
+      }));
+      
+      setAllSets(generatedSets);
       toast.success(`Lab details loaded successfully`);
     } catch (error) {
       console.error("Error fetching lab details:", error);
@@ -635,8 +550,6 @@ export function LabsPage({
 
   const handleCabinetClick = (cabinetId: string) => {
     setSelectedCabinetId(cabinetId);
-
-  
 
     toast.success(`Cabinet ${cabinetId} selected`);
   };
