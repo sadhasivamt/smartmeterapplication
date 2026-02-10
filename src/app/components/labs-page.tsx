@@ -494,25 +494,33 @@ export function LabsPage({
 
       setChManufactures(manufacturesList);
 
-      // Extract unique variants from cabinet data
-      const uniqueVariants = Array.from(
-        new Set(
-          transformedCabinetData
-            .map((cabinet) => cabinet.ch_variant)
-            .filter((ch_variant) => ch_variant !== null),
-        ),
-      ) as string[];
+      // Extract unique variants (device_model) from meter_set based on selected manufacturer
+      // This will dynamically populate variants based on manufacturer and cabinet selections
+      const uniqueVariants = new Set<string>();
+      
+      llsData.forEach((lls) => {
+        if (lls.meter_set && lls.meter_set.length > 0) {
+          lls.meter_set.forEach((device) => {
+            // Add device_model if it exists and is not empty
+            if (device.device_model && device.device_model.trim() !== "") {
+              uniqueVariants.add(device.device_model.trim());
+            }
+          });
+        }
+      });
 
       console.log("📊 Variant Extraction Debug:", {
-        transformedCabinetData: transformedCabinetData,
-        allChVariants: transformedCabinetData.map(c => c.ch_variant),
-        uniqueVariants: uniqueVariants,
+        llsDataCount: llsData.length,
+        allDeviceModels: llsData.flatMap(lls => 
+          (lls.meter_set || []).map(d => d.device_model).filter(Boolean)
+        ),
+        uniqueVariants: Array.from(uniqueVariants),
         timestamp: new Date().toISOString(),
       });
 
-      const variantsList = uniqueVariants.map((ch_variant) => ({
-        id: ch_variant,
-        name: ch_variant.toUpperCase(),
+      const variantsList = Array.from(uniqueVariants).map((deviceModel) => ({
+        id: deviceModel,
+        name: deviceModel, // Keep original case for display
       }));
 
       setChVariants(variantsList);
@@ -523,16 +531,65 @@ export function LabsPage({
         timestamp: new Date().toISOString(),
       });
       
-      // Generate sets from cabinet data
-      const generatedSets: Set[] = transformedCabinetData.map((cabinet, index) => ({
-        id: `${cabinet.cabinet_id}-${cabinet.ch_type}`,
-        name: cabinet.cabinet_id,
-        number: index + 1,
-        manufacture: cabinet.ch_type || "",
-        variant: cabinet.ch_variant || "",
-        signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
-        cabinet_id: cabinet.cabinet_id,
-      }));
+      // Generate sets from cabinet data with device_model as variant
+      const generatedSets: Set[] = [];
+      
+      llsData.forEach((lls, index) => {
+        // For each cabinet, get unique device_models from meter_set
+        const deviceModelsInCabinet = new Set<string>();
+        
+        if (lls.meter_set && lls.meter_set.length > 0) {
+          lls.meter_set.forEach((device) => {
+            if (device.device_model && device.device_model.trim() !== "") {
+              deviceModelsInCabinet.add(device.device_model.trim());
+            }
+          });
+        }
+        
+        // Create a set entry for each unique device_model in this cabinet
+        // If cabinet has no device_model, create one entry with empty variant
+        if (deviceModelsInCabinet.size === 0) {
+          const cabinet = transformedCabinetData.find(c => c.cabinet_id === lls.cabinet_id);
+          if (cabinet) {
+            generatedSets.push({
+              id: `${lls.cabinet_id}-${lls.ch_type}`,
+              name: lls.cabinet_id,
+              number: generatedSets.length + 1,
+              manufacture: lls.ch_type || "",
+              variant: "", // No device_model available
+              signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
+              cabinet_id: lls.cabinet_id,
+            });
+          }
+        } else {
+          // Create an entry for the primary device_model (we'll use the first one)
+          const primaryDeviceModel = Array.from(deviceModelsInCabinet)[0];
+          const cabinet = transformedCabinetData.find(c => c.cabinet_id === lls.cabinet_id);
+          
+          if (cabinet) {
+            generatedSets.push({
+              id: `${lls.cabinet_id}-${lls.ch_type}-${primaryDeviceModel}`,
+              name: lls.cabinet_id,
+              number: generatedSets.length + 1,
+              manufacture: lls.ch_type || "",
+              variant: primaryDeviceModel,
+              signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
+              cabinet_id: lls.cabinet_id,
+            });
+          }
+        }
+      });
+      
+      console.log("📊 Generated Sets with Device Models:", {
+        setsCount: generatedSets.length,
+        setsWithVariants: generatedSets.filter(s => s.variant !== "").length,
+        sampleSets: generatedSets.slice(0, 5).map(s => ({
+          cabinet: s.cabinet_id,
+          manufacture: s.manufacture,
+          variant: s.variant,
+        })),
+        timestamp: new Date().toISOString(),
+      });
       
       setAllSets(generatedSets);
       toast.success(`Lab details loaded successfully`);

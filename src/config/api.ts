@@ -42,7 +42,7 @@ export const API_ENDPOINTS = {
   // Log Collector endpoints
   START_LOG_COLLECTION:
     import.meta.env.VITE_API_START_LOG_COLLECTION ||
-    "/log-collector/start_log_collection",
+    "/log-collector/retrieve_log_collection",
   GET_LOG_COLLECTIONS:
     import.meta.env.VITE_API_GET_LOG_COLLECTIONS ||
     "/log-collector/log_collection_list",
