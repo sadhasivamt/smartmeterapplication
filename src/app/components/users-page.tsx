@@ -13,7 +13,6 @@ interface UsersPageProps {
   userRole?: string;
   onLogout: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
-  isDemoMode: boolean;
 }
 
 interface User {
@@ -65,7 +64,7 @@ const mockUsers: User[] = [
   },
 ];
 
-export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate, isDemoMode }: UsersPageProps) {
+export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate }: UsersPageProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -84,132 +83,125 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate,
 
   useEffect(() => {
     loadUsers();
-  }, [isDemoMode]);
+  }, []);
 
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      if (isDemoMode) {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // Real API call to /log-auth/user_list
+      const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+      
+      if (!token) {
+        console.warn("No authentication token found, using demo data");
         setUsers(mockUsers);
-        toast.success("Users loaded successfully (Demo Mode)");
-      } else {
-        // Real API call to /log-auth/user_list
-        const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-        
-        if (!token) {
-          console.warn("No authentication token found, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch(getApiUrl(API_ENDPOINTS.USER_LIST), {
-          method: "GET",
-          headers: getAuthHeaders(token),
-        });
-
-        // Check if response is JSON
-        const contentType = response.headers.get("content-type");
-        const isJson = contentType && contentType.includes("application/json");
-
-        // Handle specific error codes
-        if (response.status === 401) {
-          if (isJson) {
-            const errorData = await response.json();
-            toast.error(errorData.message || errorData.detail || "Unauthorized - Please login again");
-          } else {
-            toast.error("Invalid or missing token");
-          }
-          console.warn("Authentication failed, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        if (response.status === 404) {
-          toast.error("User list endpoint not found. Please check your API configuration.");
-          console.warn("API endpoint not found, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        if (response.status === 422) {
-          if (isJson) {
-            const errorData = await response.json();
-            toast.error(errorData.detail || "Invalid request parameters");
-          } else {
-            toast.error("Invalid request parameters");
-          }
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        if (response.status >= 500 || response.status === 400) {
-          if (isJson) {
-            const errorData = await response.json();
-            toast.error(errorData.detail || errorData.message || "API error occurred");
-          } else {
-            toast.error("Server error occurred. Please try again later.");
-          }
-          console.warn("Server error, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        if (!response.ok) {
-          if (isJson) {
-            const errorData = await response.json();
-            toast.error(errorData.message || errorData.detail || "Failed to fetch users");
-          } else {
-            toast.error(`Failed to fetch users (Status: ${response.status})`);
-          }
-          console.warn("Failed to load users from API, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        // Only try to parse JSON if content-type is JSON
-        if (!isJson) {
-          toast.error("Invalid response from server. Expected JSON but received HTML.");
-          console.warn("Invalid response format, using demo data");
-          setUsers(mockUsers);
-          setIsLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-        
-        // Expected JSON format:
-        // [
-        //   {
-        //     "first_name": "sathwik",
-        //     "last_name": "P",
-        //     "role": "user",
-        //     "user_id": "sathwik.p@hcltech.com"
-        //   }
-        // ]
-        
-        // Transform the API response to match our User interface
-        const transformedUsers: User[] = Array.isArray(data) ? data.map((apiUser: any, index: number) => ({
-          id: apiUser.user_id || String(index + 1),
-          name: `${apiUser.first_name || ""} ${apiUser.last_name || ""}`.trim() || apiUser.user_id || "Unknown",
-          email: apiUser.user_id || "",
-          username: apiUser.user_id ? apiUser.user_id.split("@")[0] : `user${index + 1}`,
-          first_name: apiUser.first_name,
-          last_name: apiUser.last_name,
-          role: apiUser.role,
-          user_id: apiUser.user_id,
-        })) : [];
-        
-        setUsers(transformedUsers);
-        toast.success(`Users loaded successfully! (${transformedUsers.length} user${transformedUsers.length !== 1 ? 's' : ''})`);
+        setIsLoading(false);
+        return;
       }
+
+      const response = await fetch(getApiUrl(API_ENDPOINTS.USER_LIST), {
+        method: "GET",
+        headers: getAuthHeaders(token),
+      });
+
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+
+      // Handle specific error codes
+      if (response.status === 401) {
+        if (isJson) {
+          const errorData = await response.json();
+          toast.error(errorData.message || errorData.detail || "Unauthorized - Please login again");
+        } else {
+          toast.error("Invalid or missing token");
+        }
+        console.warn("Authentication failed, using demo data");
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      if (response.status === 404) {
+        toast.error("User list endpoint not found. Please check your API configuration.");
+        console.warn("API endpoint not found, using demo data");
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      if (response.status === 422) {
+        if (isJson) {
+          const errorData = await response.json();
+          toast.error(errorData.detail || "Invalid request parameters");
+        } else {
+          toast.error("Invalid request parameters");
+        }
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      if (response.status >= 500 || response.status === 400) {
+        if (isJson) {
+          const errorData = await response.json();
+          toast.error(errorData.detail || errorData.message || "API error occurred");
+        } else {
+          toast.error("Server error occurred. Please try again later.");
+        }
+        console.warn("Server error, using demo data");
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        if (isJson) {
+          const errorData = await response.json();
+          toast.error(errorData.message || errorData.detail || "Failed to fetch users");
+        } else {
+          toast.error(`Failed to fetch users (Status: ${response.status})`);
+        }
+        console.warn("Failed to load users from API, using demo data");
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      // Only try to parse JSON if content-type is JSON
+      if (!isJson) {
+        toast.error("Invalid response from server. Expected JSON but received HTML.");
+        console.warn("Invalid response format, using demo data");
+        setUsers(mockUsers);
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Expected JSON format:
+      // [
+      //   {
+      //     "first_name": "sathwik",
+      //     "last_name": "P",
+      //     "role": "user",
+      //     "user_id": "sathwik.p@hcltech.com"
+      //   }
+      // ]
+      
+      // Transform the API response to match our User interface
+      const transformedUsers: User[] = Array.isArray(data) ? data.map((apiUser: any, index: number) => ({
+        id: apiUser.user_id || String(index + 1),
+        name: `${apiUser.first_name || ""} ${apiUser.last_name || ""}`.trim() || apiUser.user_id || "Unknown",
+        email: apiUser.user_id || "",
+        username: apiUser.user_id ? apiUser.user_id.split("@")[0] : `user${index + 1}`,
+        first_name: apiUser.first_name,
+        last_name: apiUser.last_name,
+        role: apiUser.role,
+        user_id: apiUser.user_id,
+      })) : [];
+      
+      setUsers(transformedUsers);
+      toast.success(`Users loaded successfully! (${transformedUsers.length} user${transformedUsers.length !== 1 ? 's' : ''})`);
     } catch (error) {
       console.error("Error loading users:", error);
       // Fallback to demo data on error
@@ -228,23 +220,6 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate,
   ) => {
     setIsInviting(true);
     
-    if (isDemoMode) {
-      // Simulate API delay in demo mode
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newUser: User = {
-        id: String(users.length + 1),
-        name: `${newMemberFirstName} ${newMemberLastName}`,
-        email: newMemberUserId,
-        username: newMemberUserId.split("@")[0],
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setUsers([...users, newUser]);
-      toast.success(`Email invitation has been sent to ${newMemberUserId}`);
-      setShowInviteDialog(false);
-      setIsInviting(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       const currentUserEmail = userEmail || localStorage.getItem("userEmail") || "demo@example.com";
@@ -297,16 +272,6 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate,
     
     setIsResettingPassword(true);
     
-    if (isDemoMode) {
-      // Simulate API delay in demo mode
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("Successfully changed your password; you can now login");
-      setShowResetPasswordDialog(false);
-      setSelectedUser(null);
-      setIsResettingPassword(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       
@@ -362,15 +327,6 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate,
 
     setIsDeletingUser(true);
     
-    if (isDemoMode) {
-      // Simulate API delay in demo mode
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setUsers(users.filter(u => u.id !== user.id));
-      toast.success(`User ${user.email} has been deleted successfully`);
-      setIsDeletingUser(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       

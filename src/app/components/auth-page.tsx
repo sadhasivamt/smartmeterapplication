@@ -34,6 +34,13 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
     try {
       const authEndpoint = getApiUrl(API_ENDPOINTS.LOGIN);
       
+      console.log("🚀 API Call - LOGIN:", {
+        url: authEndpoint,
+        method: "POST",
+        body: { user_id: email, password: "***" },
+        timestamp: new Date().toISOString(),
+      });
+
       const authResponse = await fetch(authEndpoint, {
         method: "POST",
         headers: {
@@ -43,8 +50,13 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
           user_id: email,
           password: password,
         }),
-      }).catch(() => {
+      }).catch((error) => {
         // Network error - likely CORS or endpoint not reachable
+        console.error("❌ API Error - LOGIN (Network):", {
+          url: authEndpoint,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
         return {
           success: false,
           error: "API_CONFIG_ERROR",
@@ -56,6 +68,13 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
       if (!authResponse || 'isConfigError' in authResponse) {
         return authResponse as { success: false; error: string; isConfigError: true };
       }
+
+      console.log("✅ API Response - LOGIN:", {
+        url: authEndpoint,
+        status: authResponse.status,
+        statusText: authResponse.statusText,
+        timestamp: new Date().toISOString(),
+      });
 
       // Check if response is JSON by checking content-type header
       const contentType = authResponse.headers.get("content-type");

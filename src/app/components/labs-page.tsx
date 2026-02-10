@@ -57,7 +57,6 @@ interface LabsPageProps {
   ) => void;
   onNavigateToDashboard: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
-  isDemoMode?: boolean;
 }
 
 // Type definitions for API responses
@@ -133,7 +132,6 @@ export function LabsPage({
   onSelectSet,
   onNavigateToDashboard,
   onNavigate,
-  isDemoMode,
 }: LabsPageProps) {
   const [selectedLab, setSelectedLab] = useState<string>("");
   const [selectedManufacture, setSelectedManufacture] =
@@ -195,13 +193,27 @@ export function LabsPage({
         return;
       }
 
+      const labsUrl = getApiUrl(API_ENDPOINTS.LABS);
+      console.log("🚀 API Call - GET LABS:", {
+        url: labsUrl,
+        method: "GET",
+        timestamp: new Date().toISOString(),
+      });
+
       const response = await fetch(
-        getApiUrl(API_ENDPOINTS.LABS),
+        labsUrl,
         {
           method: "GET",
           headers: getAuthHeaders(token),
         },
       );
+
+      console.log("✅ API Response - GET LABS:", {
+        url: labsUrl,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString(),
+      });
 
       // Check if response is JSON by checking content-type header
       const contentType = response.headers.get("content-type");
@@ -323,13 +335,28 @@ export function LabsPage({
         return;
       }
 
+      const labDetailsUrl = getApiUrl(API_ENDPOINTS.LAB_DETAILS, { lab_id: labId });
+      console.log("🚀 API Call - GET LAB_DETAILS:", {
+        url: labDetailsUrl,
+        method: "GET",
+        params: { lab_id: labId },
+        timestamp: new Date().toISOString(),
+      });
+
       const response = await fetch(
-        getApiUrl(API_ENDPOINTS.LAB_DETAILS, { lab_id: labId }),
+        labDetailsUrl,
         {
           method: "GET",
           headers: getAuthHeaders(token),
         },
       );
+
+      console.log("✅ API Response - GET LAB_DETAILS:", {
+        url: labDetailsUrl,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString(),
+      });
 
       // Check if response is JSON by checking content-type header
       const contentType = response.headers.get("content-type");
@@ -405,17 +432,34 @@ export function LabsPage({
 
       // Now fetch LLS inventory to get device_state information
       try {
+        const llsUrl = getApiUrl(API_ENDPOINTS.LLS_INVENTORY);
+        const llsBody = {
+          lab_id: labId,
+          with_meter_set_inventory: true,
+        };
+
+        console.log("🚀 API Call - POST LLS_INVENTORY:", {
+          url: llsUrl,
+          method: "POST",
+          body: llsBody,
+          timestamp: new Date().toISOString(),
+        });
+
         const llsResponse = await fetch(
-          getApiUrl(API_ENDPOINTS.LLS_INVENTORY),
+          llsUrl,
           {
             method: "POST",
             headers: getAuthHeaders(token),
-            body: JSON.stringify({
-              lab_id: labId,
-              with_meter_set_inventory: true,
-            }),
+            body: JSON.stringify(llsBody),
           },
         );
+
+        console.log("✅ API Response - POST LLS_INVENTORY:", {
+          url: llsUrl,
+          status: llsResponse.status,
+          statusText: llsResponse.statusText,
+          timestamp: new Date().toISOString(),
+        });
 
         const llsContentType =
           llsResponse.headers.get("content-type");
@@ -524,364 +568,6 @@ export function LabsPage({
     }
   };
 
-  /**
-   * Fetch sets from API
-   */
-  const fetchSets = async (labId: string) => {
-    setIsLoadingSets(true);
-    setAllSets([]); // Clear previous sets
-
-    // If in demo mode, use mock data
-    if (isDemoMode) {
-      setTimeout(() => {
-        const mockSets: Set[] = [
-          {
-            id: "set1",
-            name: "Set 1",
-            number: 1,
-            manufacture: "edmi",
-            variant: "v1",
-            signalStrength: "full",
-            cabinet_id: "d33",
-          },
-          {
-            id: "set2",
-            name: "Set 2",
-            number: 2,
-            manufacture: "toshiba",
-            variant: "v2",
-            signalStrength: "medium",
-            cabinet_id: "d33",
-          },
-          {
-            id: "set3",
-            name: "Set 3",
-            number: 3,
-            manufacture: "vmo2",
-            variant: "v1",
-            signalStrength: "none",
-            cabinet_id: "d33",
-          },
-          {
-            id: "set4",
-            name: "Set 4",
-            number: 4,
-            manufacture: "kaifa",
-            variant: "v3",
-            signalStrength: "full",
-            cabinet_id: "a01",
-          },
-          {
-            id: "set5",
-            name: "Set 5",
-            number: 5,
-            manufacture: "landis",
-            variant: "v2",
-            signalStrength: "medium",
-            cabinet_id: "a01",
-          },
-          {
-            id: "set6",
-            name: "Set 6",
-            number: 6,
-            manufacture: "edmi",
-            variant: "v1",
-            signalStrength: "full",
-            cabinet_id: "b22",
-          },
-        ];
-        setAllSets(mockSets);
-        setIsLoadingSets(false);
-        toast.success(`Sets loaded (Demo Mode)`);
-      }, 800);
-      return;
-    }
-
-    // Real API call - Fetch sets
-    try {
-      const token = getAuthToken();
-
-      if (!token) {
-        toast.error(
-          "Authentication token not found. Please login again.",
-        );
-        setIsLoadingSets(false);
-        return;
-      }
-
-      const response = await fetch(
-        getApiUrl(API_ENDPOINTS.SETS, { lab_id: labId }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(token),
-        },
-      );
-
-      // Check if response is JSON by checking content-type header
-      const contentType = response.headers.get("content-type");
-      const isJson =
-        contentType && contentType.includes("application/json");
-
-      // Handle specific error codes
-      if (response.status === 401) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Unauthorized - Please login again",
-          );
-        }
-        throw new Error("Invalid or missing token");
-      }
-
-      if (response.status === 404) {
-        throw new Error(
-          "Sets endpoint not found. Please check your API configuration.",
-        );
-      }
-
-      if (response.status === 422) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail || "Invalid request parameters",
-          );
-        }
-        throw new Error("Invalid request parameters");
-      }
-
-      if (response.status >= 500 || response.status === 400) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail ||
-              errorData.message ||
-              "API error occurred",
-          );
-        }
-        throw new Error(
-          "Server error occurred. Please try again later.",
-        );
-      }
-
-      if (!response.ok) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Failed to fetch sets",
-          );
-        }
-        throw new Error(
-          `Failed to fetch sets (Status: ${response.status})`,
-        );
-      }
-
-      // Only try to parse JSON if content-type is JSON
-      if (!isJson) {
-        throw new Error(
-          "Invalid response from server. Expected JSON but received HTML.",
-        );
-      }
-
-      const setsData: Set[] = await response.json();
-
-      setAllSets(setsData);
-      toast.success(`Sets loaded successfully`);
-    } catch (error) {
-      console.error("Error fetching sets:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to load sets";
-      toast.error(errorMessage);
-      setAllSets([]);
-    } finally {
-      setIsLoadingSets(false);
-    }
-  };
-
-  /**
-   * Fetch sets by cabinet from API
-   */
-  const fetchSetsByCabinet = async (
-    labId: string,
-    cabinetId: string,
-  ) => {
-    setIsLoadingSets(true);
-    setAllSets([]); // Clear previous sets
-
-    // If in demo mode, use mock data
-    if (isDemoMode) {
-      setTimeout(() => {
-        const mockSets: Set[] = [
-          {
-            id: "set1",
-            name: "Set 1",
-            number: 1,
-            manufacture: "edmi",
-            variant: "v1",
-            signalStrength: "full",
-          },
-          {
-            id: "set2",
-            name: "Set 2",
-            number: 2,
-            manufacture: "toshiba",
-            variant: "v2",
-            signalStrength: "medium",
-          },
-          {
-            id: "set3",
-            name: "Set 3",
-            number: 3,
-            manufacture: "vmo2",
-            variant: "v1",
-            signalStrength: "none",
-          },
-          {
-            id: "set4",
-            name: "Set 4",
-            number: 4,
-            manufacture: "kaifa",
-            variant: "v3",
-            signalStrength: "full",
-          },
-          {
-            id: "set5",
-            name: "Set 5",
-            number: 5,
-            manufacture: "landis",
-            variant: "v2",
-            signalStrength: "medium",
-          },
-          {
-            id: "set6",
-            name: "Set 6",
-            number: 6,
-            manufacture: "edmi",
-            variant: "v1",
-            signalStrength: "full",
-          },
-        ];
-        setAllSets(mockSets);
-        setIsLoadingSets(false);
-        toast.success(`Sets loaded (Demo Mode)`);
-      }, 800);
-      return;
-    }
-
-    // Real API call - Fetch sets by cabinet
-    try {
-      const token = getAuthToken();
-
-      if (!token) {
-        toast.error(
-          "Authentication token not found. Please login again.",
-        );
-        setIsLoadingSets(false);
-        return;
-      }
-
-      const response = await fetch(
-        getApiUrl(API_ENDPOINTS.SETS_BY_CABINET, {
-          lab_id: labId,
-          cabinet_id: cabinetId,
-        }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(token),
-        },
-      );
-
-      // Check if response is JSON by checking content-type header
-      const contentType = response.headers.get("content-type");
-      const isJson =
-        contentType && contentType.includes("application/json");
-
-      // Handle specific error codes
-      if (response.status === 401) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Unauthorized - Please login again",
-          );
-        }
-        throw new Error("Invalid or missing token");
-      }
-
-      if (response.status === 404) {
-        throw new Error(
-          "Sets endpoint not found. Please check your API configuration.",
-        );
-      }
-
-      if (response.status === 422) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail || "Invalid request parameters",
-          );
-        }
-        throw new Error("Invalid request parameters");
-      }
-
-      if (response.status >= 500 || response.status === 400) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.detail ||
-              errorData.message ||
-              "API error occurred",
-          );
-        }
-        throw new Error(
-          "Server error occurred. Please try again later.",
-        );
-      }
-
-      if (!response.ok) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              errorData.detail ||
-              "Failed to fetch sets",
-          );
-        }
-        throw new Error(
-          `Failed to fetch sets (Status: ${response.status})`,
-        );
-      }
-
-      // Only try to parse JSON if content-type is JSON
-      if (!isJson) {
-        throw new Error(
-          "Invalid response from server. Expected JSON but received HTML.",
-        );
-      }
-
-      const setsData: Set[] = await response.json();
-
-      setAllSets(setsData);
-      toast.success(`Sets loaded successfully`);
-    } catch (error) {
-      console.error("Error fetching sets by cabinet:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to load sets";
-      toast.error(errorMessage);
-      setAllSets([]);
-    } finally {
-      setIsLoadingSets(false);
-    }
-  };
-
   // Filter sets based on selections
   const getFilteredSets = () => {
     let filtered = allSets;
@@ -929,7 +615,6 @@ export function LabsPage({
     const lab = labs.find((l) => l.lab_id === value);
     if (lab) {
       fetchLabDetails(value, lab.number);
-      fetchSets(value);
     }
   };
 
@@ -951,10 +636,7 @@ export function LabsPage({
   const handleCabinetClick = (cabinetId: string) => {
     setSelectedCabinetId(cabinetId);
 
-    // Fetch sets for this cabinet
-    if (selectedLab) {
-      fetchSetsByCabinet(selectedLab, cabinetId);
-    }
+  
 
     toast.success(`Cabinet ${cabinetId} selected`);
   };

@@ -22,7 +22,6 @@ interface SetDetailsPageProps {
   onLogout: () => void;
   onNavigateToLabs: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
-  isDemoMode?: boolean;
 }
 
 // Type definitions for API response
@@ -42,7 +41,7 @@ interface DeviceInventory {
 
 type DeviceType = "CHF" | "ESME" | "PPMID" | "GSME" | "GPF";
 
-export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, isDemoMode }: SetDetailsPageProps) {
+export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate }: SetDetailsPageProps) {
   const [taskDescription, setTaskDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -136,41 +135,6 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
     // Validate HAN log format if HAN is selected
     if (logTypes.HAN && !hanLogFormat) {
       toast.error("Please select a log format for HAN Logs");
-      return;
-    }
-
-    // If in demo mode, simulate successful submission
-    if (isDemoMode) {
-      // Generate unique transaction ID
-      const transactionId = generateTransactionId();
-
-      // Format dates to API format
-      const formattedStartTime = formatDateTime(startDate, startTime);
-      const formattedStopTime = formatDateTime(endDate, endTime);
-
-      // Create a new log collection entry
-      const newLogEntry = {
-        lab_id: labId,
-        cabinet_id: cabinetId,
-        manufacture: manufacture,
-        transaction_id: transactionId,
-        log_collection_status: "Processing",
-        log_collection_status_code: 105,
-        start_time: formattedStartTime,
-        stop_time: formattedStopTime,
-        submit_time: formatDateTime(getCurrentDate(), getCurrentTime()),
-        task_desc: taskDescription.trim(),
-      };
-
-      // Store the new log entry in localStorage to be picked up by the dashboard
-      const existingEntries = JSON.parse(localStorage.getItem("pending_log_collections") || "[]");
-      existingEntries.push(newLogEntry);
-      localStorage.setItem("pending_log_collections", JSON.stringify(existingEntries));
-
-      toast.success("Log collection request submitted successfully! (Demo Mode)");
-      setTimeout(() => {
-        onBackToDashboard();
-      }, 2000);
       return;
     }
 
@@ -296,182 +260,6 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
 
   const fetchDeviceInventory = async () => {
     setLoading(true);
-    
-    // If in demo mode, use mock data based on manufacturer and variant
-    if (isDemoMode) {
-      setTimeout(() => {
-        // Define device configurations for each manufacturer/variant combination
-        type ManufacturerVariantKey = string; // Format: "manufacturer_variant"
-        
-        interface DeviceConfig {
-          device_type: DeviceType;
-          manufacturer: string;
-          guid: string;
-          device_state: string;
-          device_model: string;
-        }
-        
-        // Device configurations mapped by manufacturer_variant
-        const deviceConfigurations: Record<ManufacturerVariantKey, DeviceConfig[]> = {
-          "toshiba_v2": [
-            {
-              device_type: "CHF",
-              manufacturer: "Toshiba Corporation",
-              guid: "00-1A-2B-3C-4D-5E-6F-01",
-              device_state: "Installed",
-              device_model: "CHF-T2000"
-            },
-            {
-              device_type: "ESME",
-              manufacturer: "EDMI Europe Limited",
-              guid: "00-0B-6B-64-1F-00-00-02",
-              device_state: "Installed",
-              device_model: "Dual Band"
-            },
-            {
-              device_type: "PPMID",
-              manufacturer: "Honeywell Inc.",
-              guid: "00-1C-7D-8E-9F-00-00-03",
-              device_state: "Installed",
-              device_model: "PPMID-T500"
-            },
-            {
-              device_type: "GSME",
-              manufacturer: "Itron Inc.",
-              guid: "00-2D-8E-9F-0A-00-00-04",
-              device_state: "Installed",
-              device_model: "OpenWay Riva"
-            }
-          ],
-          "edmi_v1": [
-            {
-              device_type: "CHF",
-              manufacturer: "EDMI Limited",
-              guid: "00-2B-3C-4D-5E-6F-7A-08",
-              device_state: "Commissioned",
-              device_model: "CHF-E1000"
-            },
-            {
-              device_type: "ESME",
-              manufacturer: "EDMI Europe Limited",
-              guid: "00-3C-4D-5E-6F-7A-8B-09",
-              device_state: "Commissioned",
-              device_model: "Mk10A"
-            },
-            {
-              device_type: "GPF",
-              manufacturer: "Landis+Gyr",
-              guid: "00-4D-5E-6F-7A-8B-9C-10",
-              device_state: "Commissioned",
-              device_model: "E650"
-            }
-          ],
-          "kaifa_v3": [
-            {
-              device_type: "ESME",
-              manufacturer: "Kaifa Technology",
-              guid: "00-5E-6F-7A-8B-9C-0D-11",
-              device_state: "Installed",
-              device_model: "MA120"
-            },
-            {
-              device_type: "PPMID",
-              manufacturer: "Honeywell Inc.",
-              guid: "00-6F-7A-8B-9C-0D-1E-12",
-              device_state: "Installed",
-              device_model: "PPMID-K300"
-            },
-            {
-              device_type: "GSME",
-              manufacturer: "Itron Inc.",
-              guid: "00-7A-8B-9C-0D-1E-2F-13",
-              device_state: "Installed",
-              device_model: "OpenWay Riva"
-            },
-            {
-              device_type: "GPF",
-              manufacturer: "Landis+Gyr",
-              guid: "00-8B-9C-0D-1E-2F-3A-14",
-              device_state: "Installed",
-              device_model: "E470"
-            }
-          ],
-          "landis_v2": [
-            {
-              device_type: "CHF",
-              manufacturer: "Landis+Gyr",
-              guid: "00-9C-0D-1E-2F-3A-4B-15",
-              device_state: "Installed",
-              device_model: "CHF-L2000"
-            },
-            {
-              device_type: "ESME",
-              manufacturer: "Landis+Gyr",
-              guid: "00-0D-1E-2F-3A-4B-5C-16",
-              device_state: "Installed",
-              device_model: "E360"
-            },
-            {
-              device_type: "GPF",
-              manufacturer: "Landis+Gyr",
-              guid: "00-1E-2F-3A-4B-5C-6D-17",
-              device_state: "Installed",
-              device_model: "E470"
-            }
-          ],
-          "vmo2_v1": [
-            {
-              device_type: "ESME",
-              manufacturer: "VMO2 Limited",
-              guid: "00-2F-3A-4B-5C-6D-7E-18",
-              device_state: "Not Installed",
-              device_model: "VMO2-E100"
-            },
-            {
-              device_type: "PPMID",
-              manufacturer: "VMO2 Limited",
-              guid: "00-3A-4B-5C-6D-7E-8F-19",
-              device_state: "Not Installed",
-              device_model: "PPMID-V200"
-            }
-          ]
-        };
-        
-        // Get the configuration key
-        const configKey = `${manufacture.toLowerCase()}_${variant.toLowerCase()}`;
-        
-        // Get device configs for this manufacturer/variant or use default
-        const deviceConfigs = deviceConfigurations[configKey] || [
-          {
-            device_type: "CHF",
-            manufacturer: "Generic Manufacturer",
-            guid: "00-00-00-00-00-00-00-00",
-            device_state: "Unknown",
-            device_model: "Unknown Model"
-          }
-        ];
-        
-        // Create device inventory from configs
-        const mockInventory: DeviceInventory[] = deviceConfigs.map((config, i) => ({
-          lab_id: labId,
-          cabinet_id: cabinetId,
-          host_name: `${config.device_type}-host-${i + 1}`,
-          host_ip: `192.168.1.${100 + i}`,
-          ch_type: manufacture,
-          is_active: true,
-          manufacturer: config.manufacturer,
-          guid: config.guid,
-          device_state: config.device_state,
-          device_model: config.device_model,
-          device_type: config.device_type
-        }));
-        
-        setDeviceInventory(mockInventory);
-        setLoading(false);
-        toast.success(`Device inventory loaded for ${manufacture.toUpperCase()} ${variant.toUpperCase()} (Demo Mode)`);
-      }, 500);
-      return;
-    }
     
     try {
       const token = getAuthToken();

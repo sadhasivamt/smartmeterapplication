@@ -117,9 +117,23 @@ export default function App() {
     // Call the logout API if token exists
     if (token) {
       try {
-        const response = await fetch(getApiUrl(API_ENDPOINTS.LOGOUT), {
+        const logoutUrl = getApiUrl(API_ENDPOINTS.LOGOUT);
+        console.log("🚀 API Call - LOGOUT:", {
+          url: logoutUrl,
+          method: "GET",
+          timestamp: new Date().toISOString(),
+        });
+
+        const response = await fetch(logoutUrl, {
           method: "GET",
           headers: getAuthHeaders(token),
+        });
+
+        console.log("✅ API Response - LOGOUT:", {
+          url: logoutUrl,
+          status: response.status,
+          statusText: response.statusText,
+          timestamp: new Date().toISOString(),
         });
 
         // Check if response is JSON

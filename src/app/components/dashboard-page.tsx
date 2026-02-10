@@ -12,7 +12,6 @@ interface DashboardPageProps {
   userName: string;
   onNavigateToLabs: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
-  isDemoMode?: boolean;
 }
 
 // Type definitions for API response
@@ -52,7 +51,7 @@ interface TableRow {
   statusCode: number;
 }
 
-export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate, isDemoMode }: DashboardPageProps) {
+export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate }: DashboardPageProps) {
   const [tableData, setTableData] = useState<TableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentNextKey, setCurrentNextKey] = useState<NextPageKey | null>(null);
@@ -106,77 +105,6 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       requestPayload.next_page_key = nextPageKey;
     }
 
-    // If in demo mode, use mock data
-    if (isDemoMode) {
-      setTimeout(() => {
-        // Check for pending log collections from localStorage
-        const pendingEntries = JSON.parse(localStorage.getItem("pending_log_collections") || "[]");
-        
-        // Generate all 20 records with different manufacturers
-        const ch_types = ["toshiba_4g", "vmo2", "edmi", "wnc"];
-        const allMockRecords: LogCollection[] = Array.from({ length: 20 }, (_, i) => {
-          const statusCode = [105, 106, 107, 108, 110][i % 5];
-          const statusText = statusCode === 108 ? "log_collection_completed" : statusCode === 110 ? "log_collection_retrieval_initiated" : "log_collection_in_progress";
-          const cabinetNumber = (i % 10) + 1;
-          return {
-            transaction_id: `txn-${Math.random().toString(36).substring(7)}-${i + 1}`,
-            lab_id: `andromeda`,
-            cabinet_id: `b${String(cabinetNumber + 10).padStart(2, '0')}`,
-            ch_type: ch_types[i % ch_types.length],
-            start_time: `2026-01-${String((i % 28) + 1).padStart(2, '0')}T${String((i % 12) + 8).padStart(2, '0')}:04:17`,
-            stop_time: `2026-01-${String((i % 28) + 1).padStart(2, '0')}T${String((i % 12) + 9).padStart(2, '0')}:09:17`,
-            submit_time: `2026-01-${String((i % 28) + 1).padStart(2, '0')}T${String((i % 12) + 10).padStart(2, '0')}:27:38`,
-            task_desc: `Task ${i + 1}: Log collection for testing`,
-            log_collection_status: statusText,
-            log_collection_status_code: statusCode,
-            log_types: i % 2 === 0 ? ["ch", "zigbee"] : ["ch"],
-          };
-        });
-
-        // Combine pending entries with existing mock records
-        const combinedRecords = [...pendingEntries, ...allMockRecords];
-
-        // Sort by submit_time in descending order (most recent first)
-        combinedRecords.sort((a, b) => {
-          const dateA = new Date(a.submit_time).getTime();
-          const dateB = new Date(b.submit_time).getTime();
-          return dateB - dateA; // Descending order
-        });
-
-        // Paginate the data
-        const startIndex = (currentPage - 1) * DEFAULT_LIMIT;
-        const endIndex = startIndex + DEFAULT_LIMIT;
-        const paginatedRecords = combinedRecords.slice(startIndex, endIndex);
-        
-        const mockData: LogCollectionsResponse = {
-          next_page_key: currentPage < Math.ceil(combinedRecords.length / DEFAULT_LIMIT) ? { id: "mock-next-key-id" } : null,
-          log_collections: paginatedRecords,
-        };
-
-        // Transform API response to table rows
-        const rows: TableRow[] = mockData.log_collections.map((item, index) => ({
-          sNo: (currentPage - 1) * DEFAULT_LIMIT + index + 1,
-          taskId: item.transaction_id,
-          taskDescription: item.task_desc,
-          setDetails: `${item.lab_id} / ${item.cabinet_id} / ${item.ch_type}`,
-          timeSubmitted: formatDateTime(item.submit_time),
-          startTime: formatDateTime(item.start_time),
-          endTime: formatDateTime(item.stop_time),
-          status: getStatusText(item.log_collection_status_code, item.log_collection_status),
-          statusCode: item.log_collection_status_code,
-        }));
-
-        setTableData(rows);
-        setCurrentNextKey(mockData.next_page_key || null);
-        setIsLoading(false);
-        
-        if (showToast) {
-          toast.success("Log collections refreshed (Demo Mode)");
-        }
-      }, 500);
-      return;
-    }
-
     /* MOCK API CALL - Comment this out when using real API
     setTimeout(() => {
       // Mock data with new API response structure
@@ -223,10 +151,25 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
         return;
       }
       
-      const response = await fetch(getApiUrl(API_ENDPOINTS.GET_LOG_COLLECTIONS), {
+      const logCollectionsUrl = getApiUrl(API_ENDPOINTS.GET_LOG_COLLECTIONS);
+      console.log("🚀 API Call - POST GET_LOG_COLLECTIONS:", {
+        url: logCollectionsUrl,
+        method: "POST",
+        body: requestPayload,
+        timestamp: new Date().toISOString(),
+      });
+
+      const response = await fetch(logCollectionsUrl, {
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify(requestPayload),
+      });
+
+      console.log("✅ API Response - POST GET_LOG_COLLECTIONS:", {
+        url: logCollectionsUrl,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString(),
       });
 
       // Check if response is JSON by checking content-type header
