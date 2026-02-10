@@ -134,22 +134,42 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
       const authData = await authResponse.json();
 
+      console.log("🔑 Authentication Response Data:", {
+        hasToken: !!authData.token,
+        roles: authData.roles,
+        timestamp: new Date().toISOString(),
+      });
+
       // Validate that we received a token
       if (!authData.token) {
         throw new Error("No authentication token received from server");
       }
 
-      // Store JWT token, email, and role
+      // Extract roles from response (roles is an array, e.g., ["admin"] or ["user"])
+      // Default to ["user"] if no roles provided
+      const roles = authData.roles || ["user"];
+      const primaryRole = roles[0] || "user"; // Use first role as primary role
+
+      console.log("👤 User Role Assignment:", {
+        roles: roles,
+        primaryRole: primaryRole,
+        storage: loginData.remember ? "localStorage" : "sessionStorage",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Store JWT token, email, and roles
       if (loginData.remember) {
         localStorage.setItem("authToken", authData.token);
         localStorage.setItem("userName", email.split('@')[0]);
         localStorage.setItem("userEmail", email);
-        localStorage.setItem("userRole", authData.role || "user");
+        localStorage.setItem("userRole", primaryRole);
+        localStorage.setItem("userRoles", JSON.stringify(roles)); // Store full roles array
       } else {
         sessionStorage.setItem("authToken", authData.token);
         sessionStorage.setItem("userName", email.split('@')[0]);
         sessionStorage.setItem("userEmail", email);
-        sessionStorage.setItem("userRole", authData.role || "user");
+        sessionStorage.setItem("userRole", primaryRole);
+        sessionStorage.setItem("userRoles", JSON.stringify(roles)); // Store full roles array
       }
 
       return {
@@ -157,7 +177,8 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
         userName: email.split('@')[0],
         token: authData.token,
         userEmail: email,
-        userRole: authData.role || "user",
+        userRole: primaryRole,
+        userRoles: roles,
       };
     } catch (error) {
       // Only log non-config errors
@@ -427,7 +448,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
               <p className="text-sm text-gray-600">
-                Copyright © 2025. All rights reserved.
+                Copyright © 2026. All rights reserved.
               </p>
             </div>
             <div className="text-center md:text-right">

@@ -199,10 +199,12 @@ export default function App() {
     sessionStorage.removeItem("authToken");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("userRoles"); // Clear roles array
     localStorage.removeItem("userName");
     sessionStorage.removeItem("userName");
     sessionStorage.removeItem("userEmail");
     sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userRoles"); // Clear roles array
     localStorage.removeItem("currentPage");
     sessionStorage.removeItem("currentPage");
   };
@@ -249,6 +251,7 @@ export default function App() {
           userName={userName}
           onNavigateToLabs={handleNavigateToLabs}
           onNavigate={handleNavigate}
+          userRole={userRole}
         />
       )}
       
@@ -259,6 +262,7 @@ export default function App() {
           onSelectSet={handleSelectSet}
           onNavigateToDashboard={handleBackToDashboard}
           onNavigate={handleNavigate}
+          userRole={userRole}
         />
       )}
       
@@ -276,6 +280,7 @@ export default function App() {
           onLogout={handleLogout}
           onNavigateToLabs={handleNavigateToLabs}
           onNavigate={handleNavigate}
+          userRole={userRole}
         />
       )}
 

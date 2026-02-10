@@ -78,6 +78,14 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
   // Check if current user is admin
   const isAdmin = () => {
     const storedRole = userRole || localStorage.getItem("userRole");
+    const storedRoles = localStorage.getItem("userRoles") || sessionStorage.getItem("userRoles");
+    console.log("🔐 Admin Check:", {
+      userRole: userRole,
+      storedRole: storedRole,
+      storedRoles: storedRoles,
+      isAdmin: storedRole === "admin",
+      timestamp: new Date().toISOString(),
+    });
     return storedRole === "admin";
   };
 
@@ -419,13 +427,15 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
                     Manage and invite users to your organization
                   </p>
                 </div>
-                <Button
-                  onClick={() => setShowInviteDialog(true)}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <UserPlus className="size-4 mr-2" />
-                  Invite User
-                </Button>
+                {isAdmin() && (
+                  <Button
+                    onClick={() => setShowInviteDialog(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <UserPlus className="size-4 mr-2" />
+                    Invite User
+                  </Button>
+                )}
               </div>
 
               {/* Search Bar */}

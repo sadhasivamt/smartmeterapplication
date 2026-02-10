@@ -12,6 +12,7 @@ interface DashboardPageProps {
   userName: string;
   onNavigateToLabs: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
+  userRole?: string;
 }
 
 // Type definitions for API response
@@ -51,7 +52,7 @@ interface TableRow {
   statusCode: number;
 }
 
-export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate, userRole }: DashboardPageProps) {
   const [tableData, setTableData] = useState<TableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentNextKey, setCurrentNextKey] = useState<NextPageKey | null>(null);
@@ -61,6 +62,8 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isFetchingRef = useRef(false); // Prevent concurrent fetches
+  const pendingPageRef = useRef<number | null>(null); // Track pending page changes
+  const currentRequestIdRef = useRef<number>(0); // Track request order to prevent race conditions
 
   // API Configuration
   const POLLING_INTERVAL = 30000; // 30 seconds
@@ -107,9 +110,30 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Fetch log collections from API
    */
   const fetchLogCollections = async (nextPageKey: NextPageKey | null = null, showToast: boolean = false, pageNumber: number = currentPage) => {
-    if (isFetchingRef.current) return; // Prevent concurrent fetches
-    isFetchingRef.current = true;
+    // Note: isFetchingRef is now set by the calling function (handlers)
+    // This function assumes the caller has already set isFetchingRef.current = true
+    
     setIsLoading(true);
+    
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      console.log("⚠️ API: Aborting previous request");
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    
+    // Increment and capture request ID for this specific request
+    currentRequestIdRef.current += 1;
+    const thisRequestId = currentRequestIdRef.current;
+    
+    console.log("🚀 API: Starting fetch request", {
+      requestId: thisRequestId,
+      pageNumber: pageNumber,
+      nextPageKey: nextPageKey,
+      timestamp: new Date().toISOString(),
+    });
 
     // Build request payload
     const requestPayload: any = {
@@ -183,6 +207,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify(requestPayload),
+        signal: abortControllerRef.current.signal, // Add signal to abort request
       });
 
       console.log("✅ API Response - POST GET_LOG_COLLECTIONS:", {
@@ -232,6 +257,24 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
 
       const data: LogCollectionsResponse = await response.json();
       
+      // Check if this response is still relevant (not stale)
+      if (thisRequestId !== currentRequestIdRef.current) {
+        console.log("⚠️ API: Response is stale, discarding", {
+          responseRequestId: thisRequestId,
+          currentRequestId: currentRequestIdRef.current,
+          pageNumber: pageNumber,
+          timestamp: new Date().toISOString(),
+        });
+        return; // Discard stale response
+      }
+      
+      console.log("✅ API: Response is current, processing data", {
+        requestId: thisRequestId,
+        pageNumber: pageNumber,
+        recordCount: data.log_collections.length,
+        timestamp: new Date().toISOString(),
+      });
+      
       processApiResponse(data, pageNumber);
       if (showToast) {
         toast.success("Data refreshed successfully");
@@ -273,8 +316,13 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Handle next page button click
    */
   const handleNextPage = () => {
+    // STRICT BLOCKING: Check and set flag IMMEDIATELY before any async operation
     if (isFetchingRef.current) {
-      console.log("⚠️ Pagination: Already fetching, ignoring click");
+      console.log("⚠️ Pagination: Already fetching, ignoring Next click", {
+        currentPage: currentPage,
+        timestamp: new Date().toISOString(),
+      });
+      toast.info("Please wait for the current request to complete");
       return;
     }
     
@@ -283,10 +331,14 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       return;
     }
 
+    // Set flag IMMEDIATELY to block any subsequent clicks
+    isFetchingRef.current = true;
+
     console.log("📄 Pagination: Moving to next page", {
       currentPage: currentPage,
       nextPage: currentPage + 1,
       currentNextKey: currentNextKey,
+      fetchingFlagSet: true,
       timestamp: new Date().toISOString(),
     });
 
@@ -297,6 +349,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     setCurrentPage(nextPage);
     
     // Fetch next page with the new page number
+    // Note: isFetchingRef.current is already set to true above
     fetchLogCollections(currentNextKey, false, nextPage);
   };
 
@@ -304,8 +357,13 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Handle previous page button click
    */
   const handlePreviousPage = () => {
+    // STRICT BLOCKING: Check and set flag IMMEDIATELY before any async operation
     if (isFetchingRef.current) {
-      console.log("⚠️ Pagination: Already fetching, ignoring click");
+      console.log("⚠️ Pagination: Already fetching, ignoring Previous click", {
+        currentPage: currentPage,
+        timestamp: new Date().toISOString(),
+      });
+      toast.info("Please wait for the current request to complete");
       return;
     }
     
@@ -314,10 +372,14 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       return;
     }
 
+    // Set flag IMMEDIATELY to block any subsequent clicks
+    isFetchingRef.current = true;
+
     console.log("📄 Pagination: Moving to previous page", {
       currentPage: currentPage,
       prevPage: currentPage - 1,
       previousKeysLength: previousKeys.length,
+      fetchingFlagSet: true,
       timestamp: new Date().toISOString(),
     });
 
@@ -334,6 +396,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     setCurrentPage(prevPage);
     
     // Fetch previous page with the previous page number
+    // Note: isFetchingRef.current is already set to true above
     fetchLogCollections(previousKey, false, prevPage);
   };
 
@@ -341,9 +404,28 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Manual refresh
    */
   const handleRefresh = () => {
+    // STRICT BLOCKING: Check and set flag IMMEDIATELY
+    if (isFetchingRef.current) {
+      console.log("⚠️ Refresh: Already fetching, ignoring refresh click", {
+        timestamp: new Date().toISOString(),
+      });
+      toast.info("Please wait for the current request to complete");
+      return;
+    }
+
+    // Set flag IMMEDIATELY to block any subsequent clicks
+    isFetchingRef.current = true;
+
+    console.log("🔄 Refresh: Resetting to first page", {
+      fetchingFlagSet: true,
+      timestamp: new Date().toISOString(),
+    });
+
     // Reset to first page
     setPreviousKeys([]);
     setCurrentPage(1);
+    
+    // Note: isFetchingRef.current is already set to true above
     fetchLogCollections(null, true, 1);
   };
 
@@ -351,22 +433,44 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Setup polling on component mount
    */
   useEffect(() => {
-    // Initial fetch
-    fetchLogCollections();
+    // Initial fetch - don't set blocking flag for initial load
+    if (!isFetchingRef.current) {
+      isFetchingRef.current = true;
+      fetchLogCollections();
+    }
 
     // Setup polling
     pollingIntervalRef.current = setInterval(() => {
-      // Refresh current page data
-      const currentKeyForRefresh = previousKeys.length > 0 
-        ? previousKeys[previousKeys.length - 1] 
-        : null;
-      fetchLogCollections(currentKeyForRefresh);
+      // Only poll if not currently fetching
+      if (!isFetchingRef.current) {
+        console.log("⏰ Polling: Refreshing current page data", {
+          currentPage: currentPage,
+          timestamp: new Date().toISOString(),
+        });
+        
+        isFetchingRef.current = true;
+        
+        // Refresh current page data
+        const currentKeyForRefresh = previousKeys.length > 0 
+          ? previousKeys[previousKeys.length - 1] 
+          : null;
+        fetchLogCollections(currentKeyForRefresh);
+      } else {
+        console.log("⏰ Polling: Skipped - fetch already in progress", {
+          currentPage: currentPage,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }, POLLING_INTERVAL);
 
     // Cleanup on unmount
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
+      }
+      // Abort any pending request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, [currentPage]); // Re-run when page changes
@@ -379,6 +483,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
         userName={userName}
         onNavigate={onNavigate}
         onLogout={onLogout}
+        userRole={userRole}
       />
 
       {/* Main Content with margin for navigation */}
@@ -522,7 +627,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="text-center md:text-left">
                   <p className="text-sm text-gray-600">
-                    Copyright © 2025. All rights reserved.
+                    Copyright © 2026. All rights reserved.
                   </p>
                 </div>
                 <div className="text-center md:text-right">

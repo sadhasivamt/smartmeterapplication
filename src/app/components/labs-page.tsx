@@ -58,6 +58,7 @@ interface LabsPageProps {
   ) => void;
   onNavigateToDashboard: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
+  userRole?: string;
 }
 
 // Type definitions for API responses
@@ -148,6 +149,7 @@ export function LabsPage({
   onSelectSet,
   onNavigateToDashboard,
   onNavigate,
+  userRole,
 }: LabsPageProps) {
   const [selectedLab, setSelectedLab] = useState<string>("");
   const [selectedManufacture, setSelectedManufacture] =
@@ -173,6 +175,9 @@ export function LabsPage({
   
   // Store device information from LLS_INVENTORY for each cabinet
   const [deviceInfoMap, setDeviceInfoMap] = useState<Map<string, DeviceInfo[]>>(new Map());
+  
+  // Store raw LLS data for dynamic variant filtering
+  const [llsInventoryData, setLlsInventoryData] = useState<LLSCabinetInventory[]>([]);
 
   // Loading states
   const [isLoadingLabs, setIsLoadingLabs] = useState(true);
@@ -599,6 +604,7 @@ export function LabsPage({
       });
       
       setAllSets(generatedSets);
+      setLlsInventoryData(llsData); // Store raw LLS data for dynamic variant filtering
       toast.success(`Lab details loaded successfully`);
     } catch (error) {
       console.error("Error fetching lab details:", error);
@@ -642,18 +648,38 @@ export function LabsPage({
       return chVariants;
     }
 
-    // Get unique variants for the selected manufacturer
-    const variantsForManufacturer = Array.from(
-      new Set(
-        allSets
-          .filter((set) => set.manufacture === selectedManufacture)
-          .map((set) => set.variant)
-          .filter((variant) => variant !== "")
-      )
-    );
+    // Use raw LLS data to dynamically filter variants based on manufacturer
+    // Get unique device_models from CHF devices in cabinets matching the selected manufacturer
+    const variantsForManufacturer = new Set<string>();
+    
+    llsInventoryData.forEach((lls) => {
+      // Only process cabinets that match the selected manufacturer
+      if (lls.ch_type === selectedManufacture) {
+        if (lls.meter_set && lls.meter_set.length > 0) {
+          lls.meter_set.forEach((device) => {
+            // Only include CHF devices with device_model
+            if (
+              device.device_type === "CHF" &&
+              device.device_model &&
+              device.device_model.trim() !== ""
+            ) {
+              variantsForManufacturer.add(device.device_model.trim());
+            }
+          });
+        }
+      }
+    });
 
-    return chVariants.filter((variant) => 
-      variantsForManufacturer.includes(variant.id)
+    console.log("🔍 Dynamic Variant Filtering:", {
+      selectedManufacture: selectedManufacture,
+      allVariants: chVariants.map(v => v.id),
+      filteredVariants: Array.from(variantsForManufacturer),
+      timestamp: new Date().toISOString(),
+    });
+
+    // Filter chVariants to only include those found for this manufacturer
+    return chVariants.filter((variant) =>
+      variantsForManufacturer.has(variant.id)
     );
   };
 
@@ -745,6 +771,7 @@ export function LabsPage({
         userName={userName}
         onNavigate={onNavigate}
         onLogout={onLogout}
+        userRole={userRole}
       />
 
       {/* Main Content with margin for navigation */}
@@ -779,15 +806,7 @@ export function LabsPage({
           {/* Main Content */}
           <div className="max-w-4xl mx-auto">
             <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle>Select Laboratory and Set</CardTitle>
-                <CardDescription>
-                  {isLoadingLabs
-                    ? "Loading laboratories..."
-                    : `Choose from ${labs.length} available lab${labs.length !== 1 ? "s" : ""} and their corresponding sets`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 pt-6">
                 {/* Lab Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="lab-select">Laboratory</Label>
@@ -1111,7 +1130,7 @@ export function LabsPage({
               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="text-center md:text-left">
                   <p className="text-sm text-gray-600">
-                    Copyright © 2025. All rights reserved.
+                    Copyright © 2026. All rights reserved.
                   </p>
                 </div>
                 <div className="text-center md:text-right">

@@ -24,11 +24,12 @@ interface SetDetailsPageProps {
   onLogout: () => void;
   onNavigateToLabs: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
+  userRole?: string;
 }
 
 type DeviceType = "CHF" | "ESME" | "PPMID" | "GSME" | "GPF";
 
-export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, deviceInfo, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate }: SetDetailsPageProps) {
+export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, deviceInfo, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, userRole }: SetDetailsPageProps) {
   const [taskDescription, setTaskDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -352,6 +353,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
         userName={userName}
         onNavigate={handleNavigate}
         onLogout={onLogout}
+        userRole={userRole}
       />
 
       {/* Main Content with margin for navigation */}
@@ -632,7 +634,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="text-center md:text-left">
                   <p className="text-sm text-gray-600">
-                    Copyright © 2025. All rights reserved.
+                    Copyright © 2026. All rights reserved.
                   </p>
                 </div>
                 <div className="text-center md:text-right">
