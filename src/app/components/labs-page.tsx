@@ -495,24 +495,31 @@ export function LabsPage({
       setChManufactures(manufacturesList);
 
       // Extract unique variants (device_model) from meter_set based on selected manufacturer
-      // This will dynamically populate variants based on manufacturer and cabinet selections
+      // ONLY include device_model from devices where device_type === "CHF"
       const uniqueVariants = new Set<string>();
       
       llsData.forEach((lls) => {
         if (lls.meter_set && lls.meter_set.length > 0) {
           lls.meter_set.forEach((device) => {
-            // Add device_model if it exists and is not empty
-            if (device.device_model && device.device_model.trim() !== "") {
+            // Only add device_model if device_type is "CHF" AND device_model exists
+            if (
+              device.device_type === "CHF" && 
+              device.device_model && 
+              device.device_model.trim() !== ""
+            ) {
               uniqueVariants.add(device.device_model.trim());
             }
           });
         }
       });
 
-      console.log("📊 Variant Extraction Debug:", {
+      console.log("📊 Variant Extraction Debug (CHF only):", {
         llsDataCount: llsData.length,
         allDeviceModels: llsData.flatMap(lls => 
-          (lls.meter_set || []).map(d => d.device_model).filter(Boolean)
+          (lls.meter_set || [])
+            .filter(d => d.device_type === "CHF")
+            .map(d => d.device_model)
+            .filter(Boolean)
         ),
         uniqueVariants: Array.from(uniqueVariants),
         timestamp: new Date().toISOString(),
@@ -976,7 +983,7 @@ export function LabsPage({
                             {/* Display Cabinet ID if available, otherwise Set Number */}
                             {cabinetInfo ? (
                               <>
-                                <span className="text-sm font-bold">
+                                <span className="text-sm font-bold uppercase">
                                   {cabinetInfo.cabinet_id}
                                 </span>
                                 <span className="text-xs uppercase font-medium">
@@ -990,8 +997,8 @@ export function LabsPage({
                                 )}
                               </>
                             ) : (
-                              <span className="text-sm font-semibold">
-                                Set {set.number}
+                              <span className="text-sm font-semibold uppercase">
+                                {set.cabinet_id || `Set ${set.number}`}
                               </span>
                             )}
                           </button>

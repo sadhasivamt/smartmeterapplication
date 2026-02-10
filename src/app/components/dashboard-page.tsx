@@ -59,6 +59,8 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   const [currentPage, setCurrentPage] = useState(1);
   
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef(false); // Prevent concurrent fetches
 
   // API Configuration
   const POLLING_INTERVAL = 30000; // 30 seconds
@@ -86,9 +88,27 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   };
 
   /**
+   * Format date safely - returns "-" if invalid date
+   */
+  const formatDateSafely = (dateString: string): string => {
+    if (!dateString) return "-";
+    
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return "-";
+    }
+    
+    return date.toLocaleString();
+  };
+
+  /**
    * Fetch log collections from API
    */
   const fetchLogCollections = async (nextPageKey: NextPageKey | null = null, showToast: boolean = false, pageNumber: number = currentPage) => {
+    if (isFetchingRef.current) return; // Prevent concurrent fetches
+    isFetchingRef.current = true;
     setIsLoading(true);
 
     // Build request payload
@@ -221,6 +241,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       toast.error("Failed to load log collections. Please try again.");
       setTableData([]);
     } finally {
+      isFetchingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -237,7 +258,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       sNo: (pageNumber - 1) * DEFAULT_LIMIT + index + 1,
       taskId: log.transaction_id,
       taskDescription: log.task_desc,
-      setDetails: `${log.lab_id} / ${log.cabinet_id} / ${log.ch_type}`,
+      setDetails: `${log.lab_id} / ${log.cabinet_id} / ${log.ch_type || ""}`,
       timeSubmitted: log.submit_time,
       startTime: log.start_time,
       endTime: log.stop_time,
@@ -252,10 +273,22 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Handle next page button click
    */
   const handleNextPage = () => {
+    if (isFetchingRef.current) {
+      console.log("⚠️ Pagination: Already fetching, ignoring click");
+      return;
+    }
+    
     if (!currentNextKey) {
       toast.info("No more records available");
       return;
     }
+
+    console.log("📄 Pagination: Moving to next page", {
+      currentPage: currentPage,
+      nextPage: currentPage + 1,
+      currentNextKey: currentNextKey,
+      timestamp: new Date().toISOString(),
+    });
 
     const nextPage = currentPage + 1;
     
@@ -271,10 +304,22 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Handle previous page button click
    */
   const handlePreviousPage = () => {
+    if (isFetchingRef.current) {
+      console.log("⚠️ Pagination: Already fetching, ignoring click");
+      return;
+    }
+    
     if (currentPage === 1) {
       toast.info("You are on the first page");
       return;
     }
+
+    console.log("📄 Pagination: Moving to previous page", {
+      currentPage: currentPage,
+      prevPage: currentPage - 1,
+      previousKeysLength: previousKeys.length,
+      timestamp: new Date().toISOString(),
+    });
 
     const prevPage = currentPage - 1;
 
@@ -418,9 +463,9 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
                             <td className="p-3 text-sm font-mono text-xs">{row.taskId}</td>
                             <td className="p-3 text-sm">{row.taskDescription}</td>
                             <td className="p-3 text-sm font-semibold">{row.setDetails}</td>
-                            <td className="p-3 text-sm">{new Date(row.timeSubmitted).toLocaleString()}</td>
-                            <td className="p-3 text-sm">{new Date(row.startTime).toLocaleString()}</td>
-                            <td className="p-3 text-sm">{new Date(row.endTime).toLocaleString()}</td>
+                            <td className="p-3 text-sm">{formatDateSafely(row.timeSubmitted)}</td>
+                            <td className="p-3 text-sm">{formatDateSafely(row.startTime)}</td>
+                            <td className="p-3 text-sm">{formatDateSafely(row.endTime)}</td>
                             <td className="p-3 text-sm">
                               <span 
                                 className={`px-2 py-1 rounded-full text-xs font-semibold ${
