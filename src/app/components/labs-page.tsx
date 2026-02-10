@@ -54,6 +54,7 @@ interface LabsPageProps {
     cabinetId: string,
     manufacture: string,
     variant: string,
+    deviceInfo: DeviceInfo[],
   ) => void;
   onNavigateToDashboard: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
@@ -83,6 +84,9 @@ interface MeterDevice {
   device_state: string;
   device_type: string;
   commission_status: string;
+  manufacturer?: string;
+  guid?: string;
+  device_model?: string;
   // ... other fields from the API response
 }
 
@@ -96,6 +100,17 @@ interface LLSCabinetInventory {
   lab_id: string;
   lls_status?: string;
   meter_set: MeterDevice[];
+}
+
+// Device information to pass to Set Details page
+export interface DeviceInfo {
+  device_type: string;
+  manufacturer: string;
+  guid: string;
+  device_state: string;
+  device_model: string;
+  host_name: string;
+  host_ip: string;
 }
 
 interface Manufacture {
@@ -155,6 +170,9 @@ export function LabsPage({
   >([]);
   const [chVariants, setChVariants] = useState<Variant[]>([]);
   const [allSets, setAllSets] = useState<Set[]>([]);
+  
+  // Store device information from LLS_INVENTORY for each cabinet
+  const [deviceInfoMap, setDeviceInfoMap] = useState<Map<string, DeviceInfo[]>>(new Map());
 
   // Loading states
   const [isLoadingLabs, setIsLoadingLabs] = useState(true);
@@ -394,6 +412,43 @@ export function LabsPage({
 
       const llsData: LLSCabinetInventory[] = await llsResponse.json();
 
+      // Extract device information from meter_set for each cabinet
+      const newDeviceInfoMap = new Map<string, DeviceInfo[]>();
+      
+      llsData.forEach((lls) => {
+        const devices: DeviceInfo[] = [];
+        
+        // Extract device information from meter_set
+        if (lls.meter_set && lls.meter_set.length > 0) {
+          lls.meter_set.forEach((device) => {
+            devices.push({
+              device_type: device.device_type || "",
+              manufacturer: device.manufacturer || "",
+              guid: device.guid || "",
+              device_state: device.device_state || "",
+              device_model: device.device_model || "",
+              host_name: lls.host_name,
+              host_ip: lls.host_ip,
+            });
+          });
+        }
+        
+        // Store devices for this cabinet
+        newDeviceInfoMap.set(lls.cabinet_id, devices);
+      });
+      
+      setDeviceInfoMap(newDeviceInfoMap);
+      
+      console.log("🔧 Device Info Extraction Debug:", {
+        totalCabinets: llsData.length,
+        devicesExtracted: Array.from(newDeviceInfoMap.entries()).map(([cabinetId, devices]) => ({
+          cabinetId,
+          deviceCount: devices.length,
+          deviceTypes: devices.map(d => d.device_type),
+        })),
+        timestamp: new Date().toISOString(),
+      });
+
       // Transform LLS data to CabinetData format
       const transformedCabinetData: CabinetData[] = llsData.map(
         (lls) => {
@@ -448,12 +503,25 @@ export function LabsPage({
         ),
       ) as string[];
 
+      console.log("📊 Variant Extraction Debug:", {
+        transformedCabinetData: transformedCabinetData,
+        allChVariants: transformedCabinetData.map(c => c.ch_variant),
+        uniqueVariants: uniqueVariants,
+        timestamp: new Date().toISOString(),
+      });
+
       const variantsList = uniqueVariants.map((ch_variant) => ({
         id: ch_variant,
         name: ch_variant.toUpperCase(),
       }));
 
       setChVariants(variantsList);
+      
+      console.log("📊 Variants Set:", {
+        variantsList: variantsList,
+        count: variantsList.length,
+        timestamp: new Date().toISOString(),
+      });
       
       // Generate sets from cabinet data
       const generatedSets: Set[] = transformedCabinetData.map((cabinet, index) => ({
@@ -504,6 +572,27 @@ export function LabsPage({
     return filtered;
   };
 
+  // Filter variants based on selected manufacturer
+  const getFilteredVariants = () => {
+    if (!selectedManufacture) {
+      return chVariants;
+    }
+
+    // Get unique variants for the selected manufacturer
+    const variantsForManufacturer = Array.from(
+      new Set(
+        allSets
+          .filter((set) => set.manufacture === selectedManufacture)
+          .map((set) => set.variant)
+          .filter((variant) => variant !== "")
+      )
+    );
+
+    return chVariants.filter((variant) => 
+      variantsForManufacturer.includes(variant.id)
+    );
+  };
+
   // Filter cabinets based on manufacture selection
   const getFilteredCabinets = () => {
     let filtered = cabinetData;
@@ -519,6 +608,7 @@ export function LabsPage({
   };
 
   const sets = getFilteredSets();
+  const filteredVariants = getFilteredVariants();
   const filteredCabinets = getFilteredCabinets();
 
   const handleLabChange = (value: string) => {
@@ -561,12 +651,24 @@ export function LabsPage({
     if (lab && set) {
       // Use cabinet_id from the set, or fallback to selectedCabinetId
       const cabinetId = set.cabinet_id || selectedCabinetId;
+      
+      // Get device information for this cabinet
+      const devices = deviceInfoMap.get(cabinetId) || [];
+      
+      console.log("🚀 Opening Set Details with Device Info:", {
+        cabinetId: cabinetId,
+        deviceCount: devices.length,
+        devices: devices,
+        timestamp: new Date().toISOString(),
+      });
+      
       onSelectSet(
         lab.lab_id,
         lab.number,
         cabinetId,
         set.manufacture,
         set.variant,
+        devices,
       );
     }
   };
@@ -710,7 +812,7 @@ export function LabsPage({
                         )}
                       </SelectTrigger>
                       <SelectContent>
-                        {chVariants.map((variant) => (
+                        {filteredVariants.map((variant) => (
                           <SelectItem
                             key={variant.id}
                             value={variant.id}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useEffect } from "react";
 import { AuthPage } from "./components/auth-page";
 import { DashboardPage } from "./components/dashboard-page";
-import { LabsPage } from "./components/labs-page";
+import { LabsPage, DeviceInfo } from "./components/labs-page";
 import { SetDetailsPage } from "./components/set-details-page";
 import { UsersPage } from "./components/users-page";
 import { Toaster } from "./components/ui/sonner";
@@ -21,6 +21,7 @@ export default function App() {
   const [selectedCabinetId, setSelectedCabinetId] = useState<string>("");
   const [selectedManufacture, setSelectedManufacture] = useState("");
   const [selectedVariant, setSelectedVariant] = useState("");
+  const [selectedDeviceInfo, setSelectedDeviceInfo] = useState<DeviceInfo[]>([]);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Set page title
@@ -218,12 +219,13 @@ export default function App() {
     setCurrentPage(page);
   };
 
-  const handleSelectSet = (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string) => {
+  const handleSelectSet = (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string, deviceInfo: DeviceInfo[]) => {
     setSelectedLabId(labId);
     setSelectedLab(labNumber);
     setSelectedCabinetId(cabinetId);
     setSelectedManufacture(manufacture);
     setSelectedVariant(variant);
+    setSelectedDeviceInfo(deviceInfo);
     setCurrentPage("setDetails");
   };
 
@@ -267,6 +269,7 @@ export default function App() {
           cabinetId={selectedCabinetId}
           manufacture={selectedManufacture}
           variant={selectedVariant}
+          deviceInfo={selectedDeviceInfo}
           onBack={handleBackToLabs}
           onBackToDashboard={handleBackToDashboard}
           userName={userName}

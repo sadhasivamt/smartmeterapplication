@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { NavigationPane } from "./navigation-pane";
 import { cn } from "../lib/utils";
 import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../../config/api";
+import { DeviceInfo } from "./labs-page";
 
 interface SetDetailsPageProps {
   labId: string;
@@ -16,6 +17,7 @@ interface SetDetailsPageProps {
   cabinetId: string;
   manufacture: string;
   variant: string;
+  deviceInfo: DeviceInfo[];
   onBack: () => void;
   onBackToDashboard: () => void;
   userName: string;
@@ -24,24 +26,9 @@ interface SetDetailsPageProps {
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
 }
 
-// Type definitions for API response
-interface DeviceInventory {
-  lab_id: string;
-  cabinet_id: string;
-  host_name: string;
-  host_ip: string;
-  ch_type: string;
-  is_active: boolean;
-  manufacturer?: string;
-  guid?: string;
-  device_state?: string;
-  device_model?: string;
-  device_type?: string;
-}
-
 type DeviceType = "CHF" | "ESME" | "PPMID" | "GSME" | "GPF";
 
-export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate }: SetDetailsPageProps) {
+export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, deviceInfo, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate }: SetDetailsPageProps) {
   const [taskDescription, setTaskDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -159,7 +146,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
         selectedLogTypes.push("ch");
       }
       if (logTypes.HAN) {
-        selectedLogTypes.push("han");
+        selectedLogTypes.push("zigbee");
       }
 
       // Prepare request payload
@@ -169,8 +156,8 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
         cabinet_id: cabinetId,
         start_time: formattedStartTime,
         stop_time: formattedStopTime,
-        task_desc: taskDescription.trim(),
-        log_types: selectedLogTypes,
+        task_description: taskDescription.trim(),
+        log_types: selectedLogTypes
       };
 
       // Add log_format only if HAN is selected
@@ -178,11 +165,34 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
         requestPayload.log_format = hanLogFormat;
       }
 
+      const startLogCollectionUrl = getApiUrl(API_ENDPOINTS.START_LOG_COLLECTION);
+      
+      console.log("🚀 API Call - POST START_LOG_COLLECTION:", {
+        url: startLogCollectionUrl,
+        method: "POST",
+        body: requestPayload,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer [REDACTED]",
+        },
+        timestamp: new Date().toISOString(),
+      });
+
       // Make API call
-      const response = await fetch(getApiUrl(API_ENDPOINTS.START_LOG_COLLECTION), {
+      const response = await fetch(startLogCollectionUrl, {
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify(requestPayload),
+      });
+
+      console.log("✅ API Response - POST START_LOG_COLLECTION:", {
+        url: startLogCollectionUrl,
+        status: response.status,
+        statusText: response.statusText,
+        headers: {
+          "content-type": response.headers.get("content-type"),
+        },
+        timestamp: new Date().toISOString(),
       });
 
       // Check if response is JSON by checking content-type header
@@ -193,38 +203,95 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
       if (response.status === 401) {
         if (isJson) {
           const errorData = await response.json();
+          console.error("❌ API Error - START_LOG_COLLECTION (401 Unauthorized):", {
+            url: startLogCollectionUrl,
+            status: 401,
+            errorData: errorData,
+            timestamp: new Date().toISOString(),
+          });
           throw new Error(errorData.message || errorData.detail || "Unauthorized - Please login again");
         }
+        console.error("❌ API Error - START_LOG_COLLECTION (401 Unauthorized):", {
+          url: startLogCollectionUrl,
+          status: 401,
+          error: "Invalid or missing token",
+          timestamp: new Date().toISOString(),
+        });
         throw new Error("Invalid or missing token");
       }
 
       if (response.status === 404) {
+        console.error("❌ API Error - START_LOG_COLLECTION (404 Not Found):", {
+          url: startLogCollectionUrl,
+          status: 404,
+          error: "Endpoint not found",
+          timestamp: new Date().toISOString(),
+        });
         throw new Error("Log collection endpoint not found. Please check your API configuration.");
       }
 
       if (response.status >= 500 || response.status === 400) {
         if (isJson) {
           const errorData = await response.json();
+          console.error("❌ API Error - START_LOG_COLLECTION (Server Error):", {
+            url: startLogCollectionUrl,
+            status: response.status,
+            errorData: errorData,
+            timestamp: new Date().toISOString(),
+          });
           throw new Error(errorData.detail || errorData.message || "API error occurred");
         }
+        console.error("❌ API Error - START_LOG_COLLECTION (Server Error):", {
+          url: startLogCollectionUrl,
+          status: response.status,
+          error: "Server error occurred",
+          timestamp: new Date().toISOString(),
+        });
         throw new Error("Server error occurred. Please try again later.");
       }
 
       if (!response.ok) {
         if (isJson) {
           const errorData = await response.json();
+          console.error("❌ API Error - START_LOG_COLLECTION (Request Failed):", {
+            url: startLogCollectionUrl,
+            status: response.status,
+            errorData: errorData,
+            timestamp: new Date().toISOString(),
+          });
           throw new Error(errorData.message || errorData.detail || "Failed to submit log collection request");
         }
+        console.error("❌ API Error - START_LOG_COLLECTION (Request Failed):", {
+          url: startLogCollectionUrl,
+          status: response.status,
+          error: `Failed to submit request (Status: ${response.status})`,
+          timestamp: new Date().toISOString(),
+        });
         throw new Error(`Failed to submit log collection request (Status: ${response.status})`);
       }
 
       // Only try to parse JSON if content-type is JSON
       if (!isJson) {
+        console.error("❌ API Error - START_LOG_COLLECTION (Invalid Response):", {
+          url: startLogCollectionUrl,
+          status: response.status,
+          error: "Expected JSON but received HTML",
+          contentType: contentType,
+          timestamp: new Date().toISOString(),
+        });
         throw new Error("Invalid response from server. Expected JSON but received HTML.");
       }
 
-      // Success - optionally parse response if needed
-      await response.json().catch(() => ({})); // Parse but ignore response data
+      // Success - parse response data
+      const responseData = await response.json().catch(() => ({}));
+      
+      console.log("🎉 API Success - START_LOG_COLLECTION:", {
+        url: startLogCollectionUrl,
+        status: response.status,
+        responseData: responseData,
+        transactionId: transactionId,
+        timestamp: new Date().toISOString(),
+      });
       
       toast.success("Log collection request submitted successfully!");
       
@@ -240,7 +307,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
   };
 
   // State to hold device inventory
-  const [deviceInventory, setDeviceInventory] = useState<DeviceInventory[]>([]);
+  const [deviceInventory, setDeviceInventory] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Get authentication token from storage
@@ -253,85 +320,25 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
     return crypto.randomUUID();
   };
 
-  // Fetch device inventory from API when component mounts
+  /**
+   * Use device information passed from labs page
+   */
   useEffect(() => {
-    fetchDeviceInventory();
-  }, [labId, manufacture]);
+    console.log("🔧 Device Info Received in Set Details:", {
+      deviceInfo: deviceInfo,
+      deviceCount: deviceInfo.length,
+      deviceTypes: deviceInfo.map(d => d.device_type),
+      timestamp: new Date().toISOString(),
+    });
 
-  const fetchDeviceInventory = async () => {
-    setLoading(true);
-    
-    try {
-      const token = getAuthToken();
-      
-      if (!token) {
-        toast.error("Authentication token not found. Please login again.");
-        setLoading(false);
-        return;
-      }
+    // Set device inventory from passed props
+    setDeviceInventory(deviceInfo);
+    setLoading(false);
 
-      // Build URL with query parameters
-      const url = getApiUrl(API_ENDPOINTS.DEVICE_INVENTORY, { lab_id: labId });
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: getAuthHeaders(token),
-        body: JSON.stringify({
-          lab_id: labId,
-          ch_type: manufacture,
-        }),
-      });
-
-      // Check if response is JSON by checking content-type header
-      const contentType = response.headers.get("content-type");
-      const isJson = contentType && contentType.includes("application/json");
-
-      // Handle specific error codes
-      if (response.status === 401) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || errorData.detail || "Unauthorized - Please login again");
-        }
-        throw new Error("Invalid or missing token");
-      }
-
-      if (response.status === 404) {
-        throw new Error("Device inventory endpoint not found. Please check your API configuration.");
-      }
-
-      if (response.status >= 500 || response.status === 400) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || errorData.message || "API error occurred");
-        }
-        throw new Error("Server error occurred. Please try again later.");
-      }
-
-      if (!response.ok) {
-        if (isJson) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || errorData.detail || "Failed to fetch device inventory");
-        }
-        throw new Error(`Failed to fetch device inventory (Status: ${response.status})`);
-      }
-
-      // Only try to parse JSON if content-type is JSON
-      if (!isJson) {
-        throw new Error("Invalid response from server. Expected JSON but received HTML.");
-      }
-
-      const data: DeviceInventory[] = await response.json();
-      setDeviceInventory(data);
-      toast.success("Device inventory loaded successfully");
-    } catch (error) {
-      console.error("Error fetching device inventory:", error);
-      const errorMessage = error instanceof Error ? error.message : "Error fetching device inventory";
-      toast.error(errorMessage);
-      setDeviceInventory([]);
-    } finally {
-      setLoading(false);
+    if (deviceInfo.length === 0) {
+      toast.info("No devices found for this cabinet");
     }
-  };
+  }, [deviceInfo]);
 
   const handleNavigate = (page: "dashboard" | "labs" | "admin") => {
     onNavigate(page);

@@ -88,7 +88,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   /**
    * Fetch log collections from API
    */
-  const fetchLogCollections = async (nextPageKey: NextPageKey | null = null, showToast: boolean = false) => {
+  const fetchLogCollections = async (nextPageKey: NextPageKey | null = null, showToast: boolean = false, pageNumber: number = currentPage) => {
     setIsLoading(true);
 
     // Build request payload
@@ -212,7 +212,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
 
       const data: LogCollectionsResponse = await response.json();
       
-      processApiResponse(data);
+      processApiResponse(data, pageNumber);
       if (showToast) {
         toast.success("Data refreshed successfully");
       }
@@ -228,13 +228,13 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   /**
    * Process API response and map to table data
    */
-  const processApiResponse = (data: LogCollectionsResponse) => {
+  const processApiResponse = (data: LogCollectionsResponse, pageNumber: number) => {
     // Update next page key
     setCurrentNextKey(data.next_page_key);
 
     // Map log collections to table rows
     const mappedData: TableRow[] = data.log_collections.map((log, index) => ({
-      sNo: (currentPage - 1) * DEFAULT_LIMIT + index + 1,
+      sNo: (pageNumber - 1) * DEFAULT_LIMIT + index + 1,
       taskId: log.transaction_id,
       taskDescription: log.task_desc,
       setDetails: `${log.lab_id} / ${log.cabinet_id} / ${log.ch_type}`,
@@ -257,12 +257,14 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       return;
     }
 
+    const nextPage = currentPage + 1;
+    
     // Save current state to previous keys
     setPreviousKeys([...previousKeys, currentNextKey]);
-    setCurrentPage(currentPage + 1);
+    setCurrentPage(nextPage);
     
-    // Fetch next page
-    fetchLogCollections(currentNextKey);
+    // Fetch next page with the new page number
+    fetchLogCollections(currentNextKey, false, nextPage);
   };
 
   /**
@@ -274,6 +276,8 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       return;
     }
 
+    const prevPage = currentPage - 1;
+
     // Get the previous next_page_key
     const newPreviousKeys = [...previousKeys];
     const previousKey = newPreviousKeys.length > 1 ? newPreviousKeys[newPreviousKeys.length - 2] : null;
@@ -282,10 +286,10 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     newPreviousKeys.pop();
     setPreviousKeys(newPreviousKeys);
     
-    setCurrentPage(currentPage - 1);
+    setCurrentPage(prevPage);
     
-    // Fetch previous page
-    fetchLogCollections(previousKey);
+    // Fetch previous page with the previous page number
+    fetchLogCollections(previousKey, false, prevPage);
   };
 
   /**
@@ -295,7 +299,7 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     // Reset to first page
     setPreviousKeys([]);
     setCurrentPage(1);
-    fetchLogCollections(null, true);
+    fetchLogCollections(null, true, 1);
   };
 
   /**
