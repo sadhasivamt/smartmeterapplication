@@ -137,9 +137,14 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
 
     // Build request payload
     const requestPayload: any = {
-      filters: {},
+      filters: {
+        log_collection_status_code: {
+          gte: 105,
+          lte: 110
+        }
+      },
       sort: {
-        start_time: -1, // 1 for ascending, -1 for descending
+        submit_time: -1, // 1 for ascending, -1 for descending
       },
       limit: DEFAULT_LIMIT,
     };
