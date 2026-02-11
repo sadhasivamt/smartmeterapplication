@@ -193,6 +193,150 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
     }
   };
 
+  /**
+   * Handle forgot password functionality
+   * Validates email and sends password reset request
+   */
+  const handleForgotPassword = async () => {
+    // Validate email is not empty
+    if (!loginData.email || loginData.email.trim() === "") {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(loginData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const forgotPasswordEndpoint = getApiUrl(API_ENDPOINTS.FORGOT_PASSWORD);
+      
+      console.log("🚀 API Call - FORGOT_PASSWORD:", {
+        url: forgotPasswordEndpoint,
+        method: "POST",
+        body: { user_id: loginData.email },
+        timestamp: new Date().toISOString(),
+      });
+
+      const response = await fetch(forgotPasswordEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: loginData.email,
+        }),
+      });
+
+      console.log("✅ API Response - FORGOT_PASSWORD:", {
+        url: forgotPasswordEndpoint,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+
+      // Handle different response codes
+      if (response.status === 200) {
+        // Success - Secret code sent
+        if (isJson) {
+          const data = await response.json();
+          toast.success(data.message || `Secret code has been sent to ${loginData.email}`);
+          console.log("✅ Forgot Password Success:", {
+            email: loginData.email,
+            message: data.message,
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          toast.success(`Secret code has been sent to ${loginData.email}`);
+        }
+        return;
+      }
+
+      // Handle error responses
+      let errorMessage = "An error occurred. Please try again.";
+
+      if (isJson) {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.detail || errorMessage;
+      }
+
+      // Handle specific error codes
+      switch (response.status) {
+        case 400:
+          toast.error(errorMessage || "Email server error");
+          console.error("❌ Forgot Password Error (400):", {
+            email: loginData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 401:
+          toast.error(errorMessage || "Email server authentication error");
+          console.error("❌ Forgot Password Error (401):", {
+            email: loginData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 404:
+          toast.error(errorMessage || "User not exist");
+          console.error("❌ Forgot Password Error (404):", {
+            email: loginData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 422:
+          toast.error(errorMessage || "Invalid request: user_id missing");
+          console.error("❌ Forgot Password Error (422):", {
+            email: loginData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 500:
+          toast.error(errorMessage || "MDB CONNECTION ERROR");
+          console.error("❌ Forgot Password Error (500):", {
+            email: loginData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        default:
+          toast.error(errorMessage);
+          console.error("❌ Forgot Password Error (Unknown):", {
+            email: loginData.email,
+            status: response.status,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+      }
+    } catch (error) {
+      console.error("❌ Forgot Password Error (Network):", {
+        email: loginData.email,
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      });
+      toast.error("Network error. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -339,7 +483,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                     <button
                       type="button"
                       className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                      onClick={() => toast.info("Password reset link would be sent to your email")}
+                      onClick={handleForgotPassword}
                     >
                       Forgot password?
                     </button>

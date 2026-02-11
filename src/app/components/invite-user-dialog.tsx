@@ -23,7 +23,7 @@ export function InviteUserDialog({
   isInviting 
 }: InviteUserDialogProps) {
   const [newMemberUserId, setNewMemberUserId] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState("User");
+  const [newMemberRole, setNewMemberRole] = useState("user");
   const [newMemberFirstName, setNewMemberFirstName] = useState("");
   const [newMemberLastName, setNewMemberLastName] = useState("");
   const [errors, setErrors] = useState<{ 
@@ -67,7 +67,7 @@ export function InviteUserDialog({
       onInvite(newMemberUserId, newMemberRole, newMemberFirstName, newMemberLastName);
       // Reset form
       setNewMemberUserId("");
-      setNewMemberRole("User");
+      setNewMemberRole("user");
       setNewMemberFirstName("");
       setNewMemberLastName("");
       setErrors({});
@@ -76,7 +76,7 @@ export function InviteUserDialog({
 
   const handleClose = () => {
     setNewMemberUserId("");
-    setNewMemberRole("User");
+    setNewMemberRole("user");
     setNewMemberFirstName("");
     setNewMemberLastName("");
     setErrors({});
@@ -188,8 +188,8 @@ export function InviteUserDialog({
               disabled={isInviting}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300 disabled:opacity-50 disabled:bg-gray-50"
             >
-              <option value="User">User</option>
-              <option value="Admin">Admin</option>
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
 
