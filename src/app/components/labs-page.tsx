@@ -547,20 +547,25 @@ export function LabsPage({
       const generatedSets: Set[] = [];
       
       llsData.forEach((lls, index) => {
-        // For each cabinet, get unique device_models from meter_set
-        const deviceModelsInCabinet = new Set<string>();
+        // For each cabinet, get unique device_models from CHF devices only
+        const chfDeviceModelsInCabinet = new Set<string>();
         
         if (lls.meter_set && lls.meter_set.length > 0) {
           lls.meter_set.forEach((device) => {
-            if (device.device_model && device.device_model.trim() !== "") {
-              deviceModelsInCabinet.add(device.device_model.trim());
+            // Only include device_model from CHF devices
+            if (
+              device.device_type === "CHF" &&
+              device.device_model && 
+              device.device_model.trim() !== ""
+            ) {
+              chfDeviceModelsInCabinet.add(device.device_model.trim());
             }
           });
         }
         
-        // Create a set entry for each unique device_model in this cabinet
-        // If cabinet has no device_model, create one entry with empty variant
-        if (deviceModelsInCabinet.size === 0) {
+        // Create a set entry for each unique CHF device_model in this cabinet
+        // If cabinet has no CHF device_model, create one entry with empty variant
+        if (chfDeviceModelsInCabinet.size === 0) {
           const cabinet = transformedCabinetData.find(c => c.cabinet_id === lls.cabinet_id);
           if (cabinet) {
             generatedSets.push({
@@ -568,14 +573,14 @@ export function LabsPage({
               name: lls.cabinet_id,
               number: generatedSets.length + 1,
               manufacture: lls.ch_type || "",
-              variant: "", // No device_model available
+              variant: "", // No CHF device_model available
               signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
               cabinet_id: lls.cabinet_id,
             });
           }
         } else {
-          // Create an entry for the primary device_model (we'll use the first one)
-          const primaryDeviceModel = Array.from(deviceModelsInCabinet)[0];
+          // Create an entry for the primary CHF device_model (we'll use the first one)
+          const primaryDeviceModel = Array.from(chfDeviceModelsInCabinet)[0];
           const cabinet = transformedCabinetData.find(c => c.cabinet_id === lls.cabinet_id);
           
           if (cabinet) {
@@ -592,14 +597,16 @@ export function LabsPage({
         }
       });
       
-      console.log("📊 Generated Sets with Device Models:", {
+      console.log("📊 Generated Sets with CHF Device Models:", {
         setsCount: generatedSets.length,
         setsWithVariants: generatedSets.filter(s => s.variant !== "").length,
+        setsWithoutVariants: generatedSets.filter(s => s.variant === "").length,
         sampleSets: generatedSets.slice(0, 5).map(s => ({
           cabinet: s.cabinet_id,
           manufacture: s.manufacture,
-          variant: s.variant,
+          variant: s.variant || "(no CHF variant)",
         })),
+        allVariants: [...new Set(generatedSets.map(s => s.variant).filter(Boolean))],
         timestamp: new Date().toISOString(),
       });
       
@@ -625,19 +632,57 @@ export function LabsPage({
   const getFilteredSets = () => {
     let filtered = allSets;
 
+    console.log("🔍 Set Filtering Debug - Start:", {
+      totalSets: allSets.length,
+      selectedManufacture: selectedManufacture,
+      selectedVariant: selectedVariant,
+      timestamp: new Date().toISOString(),
+    });
+
     // Filter by manufacture if selected
     if (selectedManufacture) {
       filtered = filtered.filter(
         (set) => set.manufacture === selectedManufacture,
       );
+      
+      console.log("🔍 After Manufacture Filter:", {
+        filteredCount: filtered.length,
+        sampleSets: filtered.slice(0, 3).map(s => ({
+          cabinet: s.cabinet_id,
+          manufacture: s.manufacture,
+          variant: s.variant,
+        })),
+      });
     }
 
     // Filter by variant if selected
     if (selectedVariant) {
+      console.log("🔍 Before Variant Filter:", {
+        setsToFilter: filtered.length,
+        selectedVariant: selectedVariant,
+        availableVariants: [...new Set(filtered.map(s => s.variant))],
+        setsWithMatchingVariant: filtered.filter(s => s.variant === selectedVariant).length,
+      });
+      
       filtered = filtered.filter(
         (set) => set.variant === selectedVariant,
       );
+      
+      console.log("🔍 After Variant Filter:", {
+        filteredCount: filtered.length,
+        selectedVariant: selectedVariant,
+        matchedSets: filtered.map(s => ({
+          cabinet: s.cabinet_id,
+          manufacture: s.manufacture,
+          variant: s.variant,
+        })),
+      });
     }
+
+    console.log("🔍 Set Filtering Debug - Final:", {
+      finalCount: filtered.length,
+      timestamp: new Date().toISOString(),
+    });
 
     return filtered;
   };

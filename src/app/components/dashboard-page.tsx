@@ -292,13 +292,16 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   /**
    * Process API response and map to table data
    */
-  const processApiResponse = (data: LogCollectionsResponse, pageNumber: number) => {
+  const processApiResponse = (data: LogCollectionsResponse, pageNumber?: number) => {
     // Update next page key
     setCurrentNextKey(data.next_page_key);
 
+    // Use currentPage if pageNumber not provided
+    const actualPageNumber = pageNumber !== undefined ? pageNumber : currentPage;
+
     // Map log collections to table rows
     const mappedData: TableRow[] = data.log_collections.map((log, index) => ({
-      sNo: (pageNumber - 1) * DEFAULT_LIMIT + index + 1,
+      sNo: (actualPageNumber - 1) * DEFAULT_LIMIT + index + 1,
       taskId: log.transaction_id,
       taskDescription: log.task_desc,
       setDetails: `${log.lab_id} / ${log.cabinet_id} / ${log.ch_type || ""}`,
@@ -309,13 +312,57 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       statusCode: log.log_collection_status_code,
     }));
 
+    console.log("📊 Data Processing:", {
+      pageNumber: actualPageNumber,
+      recordCount: mappedData.length,
+      firstSNo: mappedData.length > 0 ? mappedData[0].sNo : 0,
+      lastSNo: mappedData.length > 0 ? mappedData[mappedData.length - 1].sNo : 0,
+      timestamp: new Date().toISOString(),
+    });
+
     setTableData(mappedData);
+  };
+
+  /**
+   * Validate pagination state consistency
+   */
+  const validatePaginationState = (context: string) => {
+    const expectedKeysLength = currentPage - 1;
+    const isValid = previousKeys.length === expectedKeysLength;
+    
+    console.log(`🔍 Pagination State Validation - ${context}:`, {
+      currentPage: currentPage,
+      previousKeysLength: previousKeys.length,
+      expectedKeysLength: expectedKeysLength,
+      isValid: isValid,
+      previousKeys: previousKeys.map((key, idx) => ({
+        index: idx,
+        pageItLeadsTo: idx + 2,
+        keyId: key?.id || "null",
+      })),
+      currentNextKey: currentNextKey?.id || "null",
+      timestamp: new Date().toISOString(),
+    });
+    
+    if (!isValid) {
+      console.error(`❌ Pagination State INVALID - ${context}:`, {
+        currentPage: currentPage,
+        previousKeysLength: previousKeys.length,
+        expectedKeysLength: expectedKeysLength,
+        message: `Expected ${expectedKeysLength} keys but found ${previousKeys.length}`,
+      });
+    }
+    
+    return isValid;
   };
 
   /**
    * Handle next page button click
    */
   const handleNextPage = () => {
+    // Validate current state before navigating
+    validatePaginationState("Before Next Click");
+    
     // STRICT BLOCKING: Check and set flag IMMEDIATELY before any async operation
     if (isFetchingRef.current) {
       console.log("⚠️ Pagination: Already fetching, ignoring Next click", {
@@ -327,7 +374,22 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     }
     
     if (!currentNextKey) {
+      console.warn("⚠️ Pagination: No next page key available", {
+        currentPage: currentPage,
+        currentNextKey: currentNextKey,
+        timestamp: new Date().toISOString(),
+      });
       toast.info("No more records available");
+      return;
+    }
+
+    // Validate that currentNextKey has the expected structure
+    if (!currentNextKey.id) {
+      console.error("❌ Pagination: Invalid next page key structure", {
+        currentNextKey: currentNextKey,
+        timestamp: new Date().toISOString(),
+      });
+      toast.error("Invalid pagination key. Please refresh the page.");
       return;
     }
 
@@ -337,16 +399,55 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     console.log("📄 Pagination: Moving to next page", {
       currentPage: currentPage,
       nextPage: currentPage + 1,
-      currentNextKey: currentNextKey,
+      currentNextKeyId: currentNextKey.id,
+      previousKeysBeforeUpdate: previousKeys.map(k => k?.id || "null"),
       fetchingFlagSet: true,
       timestamp: new Date().toISOString(),
     });
 
     const nextPage = currentPage + 1;
     
-    // Save current state to previous keys
-    setPreviousKeys([...previousKeys, currentNextKey]);
+    // Build the history of keys:
+    // We need to track what key gets us to each page
+    // Page 1: null (or undefined - no key needed)
+    // Page 2: keyA (use keyA to get page 2)
+    // Page 3: keyB (use keyB to get page 3)
+    // 
+    // So previousKeys array should contain the key used to GET TO that page index
+    // previousKeys[0] = key to get to page 2 (from page 1)
+    // previousKeys[1] = key to get to page 3 (from page 2)
+    const newPreviousKeys = [...previousKeys];
+    
+    // Going from page N to page N+1, save the key that gets us to page N+1
+    // The key is at index (nextPage - 2) because array is 0-indexed and page 1 has no key
+    newPreviousKeys.push(currentNextKey);
+    
+    // Validation: Ensure the new array length matches the expected value
+    const expectedLength = nextPage - 1;
+    if (newPreviousKeys.length !== expectedLength) {
+      console.error("❌ Pagination: Key array length mismatch after push", {
+        actualLength: newPreviousKeys.length,
+        expectedLength: expectedLength,
+        nextPage: nextPage,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    
+    setPreviousKeys(newPreviousKeys);
     setCurrentPage(nextPage);
+    
+    console.log("📄 Pagination: State updated for Next", {
+      newCurrentPage: nextPage,
+      previousKeysAfterUpdate: newPreviousKeys.map((k, idx) => ({
+        index: idx,
+        leadsToPage: idx + 2,
+        keyId: k?.id || "null",
+      })),
+      keyBeingUsed: currentNextKey.id,
+      expectedArrayLength: expectedLength,
+      actualArrayLength: newPreviousKeys.length,
+      timestamp: new Date().toISOString(),
+    });
     
     // Fetch next page with the new page number
     // Note: isFetchingRef.current is already set to true above
@@ -357,6 +458,9 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
    * Handle previous page button click
    */
   const handlePreviousPage = () => {
+    // Validate current state before navigating
+    validatePaginationState("Before Previous Click");
+    
     // STRICT BLOCKING: Check and set flag IMMEDIATELY before any async operation
     if (isFetchingRef.current) {
       console.log("⚠️ Pagination: Already fetching, ignoring Previous click", {
@@ -368,7 +472,27 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
     }
     
     if (currentPage === 1) {
+      console.warn("⚠️ Pagination: Already on first page", {
+        currentPage: currentPage,
+        timestamp: new Date().toISOString(),
+      });
       toast.info("You are on the first page");
+      return;
+    }
+
+    // Validate that we have the necessary keys to go back
+    const prevPage = currentPage - 1;
+    const requiredKeyIndex = prevPage - 2;
+    
+    if (prevPage > 1 && (requiredKeyIndex < 0 || requiredKeyIndex >= previousKeys.length)) {
+      console.error("❌ Pagination: Missing required key for previous page", {
+        currentPage: currentPage,
+        prevPage: prevPage,
+        requiredKeyIndex: requiredKeyIndex,
+        previousKeysLength: previousKeys.length,
+        timestamp: new Date().toISOString(),
+      });
+      toast.error("Pagination error. Please refresh the page.");
       return;
     }
 
@@ -377,27 +501,101 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
 
     console.log("📄 Pagination: Moving to previous page", {
       currentPage: currentPage,
-      prevPage: currentPage - 1,
+      prevPage: prevPage,
+      previousKeysBeforeUpdate: previousKeys.map(k => k?.id || "null"),
       previousKeysLength: previousKeys.length,
       fetchingFlagSet: true,
       timestamp: new Date().toISOString(),
     });
 
-    const prevPage = currentPage - 1;
-
-    // Get the previous next_page_key
+    // Going from page N to page N-1
+    // To get to page N-1, we need previousKeys[N-2]
+    // Example: Going from page 3 to page 2, we need previousKeys[1] (0-indexed) which is keyB
+    // Example: Going from page 2 to page 1, we need null (page 1 has no key)
     const newPreviousKeys = [...previousKeys];
-    const previousKey = newPreviousKeys.length > 1 ? newPreviousKeys[newPreviousKeys.length - 2] : null;
     
-    // Remove the last key
-    newPreviousKeys.pop();
+    // Get the key for the previous page
+    // If going to page 1, use null
+    // Otherwise, use previousKeys[prevPage - 2] (because page 2 is at index 0)
+    let keyForPrevPage: NextPageKey | null = null;
+    
+    if (prevPage === 1) {
+      keyForPrevPage = null;
+      console.log("📄 Pagination: Going to page 1 (no key needed)");
+    } else {
+      const keyIndex = prevPage - 2;
+      keyForPrevPage = newPreviousKeys[keyIndex];
+      
+      // Validate the key exists and has correct structure
+      if (!keyForPrevPage) {
+        console.error("❌ Pagination: Key for previous page is null/undefined", {
+          prevPage: prevPage,
+          keyIndex: keyIndex,
+          availableKeys: newPreviousKeys.length,
+          timestamp: new Date().toISOString(),
+        });
+        toast.error("Pagination error. Please refresh the page.");
+        isFetchingRef.current = false;
+        return;
+      }
+      
+      if (!keyForPrevPage.id) {
+        console.error("❌ Pagination: Invalid key structure for previous page", {
+          prevPage: prevPage,
+          keyIndex: keyIndex,
+          key: keyForPrevPage,
+          timestamp: new Date().toISOString(),
+        });
+        toast.error("Invalid pagination key. Please refresh the page.");
+        isFetchingRef.current = false;
+        return;
+      }
+      
+      console.log("📄 Pagination: Using key for previous page", {
+        prevPage: prevPage,
+        keyIndex: keyIndex,
+        keyId: keyForPrevPage.id,
+      });
+    }
+    
+    // Remove the last key since we're going backwards
+    const removedKey = newPreviousKeys.pop();
+    
+    console.log("📄 Pagination: Removed last key from history", {
+      removedKeyId: removedKey?.id || "null",
+      remainingKeysCount: newPreviousKeys.length,
+    });
+    
+    // Validation: Ensure the new array length matches the expected value
+    const expectedLength = prevPage - 1;
+    if (newPreviousKeys.length !== expectedLength) {
+      console.error("❌ Pagination: Key array length mismatch after pop", {
+        actualLength: newPreviousKeys.length,
+        expectedLength: expectedLength,
+        prevPage: prevPage,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    
     setPreviousKeys(newPreviousKeys);
-    
     setCurrentPage(prevPage);
+    
+    console.log("📄 Pagination: State updated for Previous", {
+      newCurrentPage: prevPage,
+      previousKeysAfterUpdate: newPreviousKeys.map((k, idx) => ({
+        index: idx,
+        leadsToPage: idx + 2,
+        keyId: k?.id || "null",
+      })),
+      keyBeingUsed: keyForPrevPage?.id || "null",
+      expectedArrayLength: expectedLength,
+      actualArrayLength: newPreviousKeys.length,
+      timestamp: new Date().toISOString(),
+    });
     
     // Fetch previous page with the previous page number
     // Note: isFetchingRef.current is already set to true above
-    fetchLogCollections(previousKey, false, prevPage);
+    fetchLogCollections(keyForPrevPage, false, prevPage);
   };
 
   /**
@@ -430,31 +628,64 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
   };
 
   /**
-   * Setup polling on component mount
+   * Setup initial fetch on component mount only
    */
   useEffect(() => {
     // Initial fetch - don't set blocking flag for initial load
     if (!isFetchingRef.current) {
       isFetchingRef.current = true;
-      fetchLogCollections();
+      fetchLogCollections(null, false, 1);
     }
 
-    // Setup polling
+    // Cleanup on unmount
+    return () => {
+      // Abort any pending request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []); // Only run once on mount
+
+  /**
+   * Setup and restart polling when currentPage changes
+   */
+  useEffect(() => {
+    // Clear existing polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Setup new polling interval
     pollingIntervalRef.current = setInterval(() => {
       // Only poll if not currently fetching
       if (!isFetchingRef.current) {
+        // Get the current page and previousKeys at poll time
+        const pollCurrentPage = currentPage;
+        const pollPreviousKeys = previousKeys;
+        
         console.log("⏰ Polling: Refreshing current page data", {
-          currentPage: currentPage,
+          currentPage: pollCurrentPage,
+          previousKeysLength: pollPreviousKeys.length,
           timestamp: new Date().toISOString(),
         });
         
         isFetchingRef.current = true;
         
-        // Refresh current page data
-        const currentKeyForRefresh = previousKeys.length > 0 
-          ? previousKeys[previousKeys.length - 1] 
-          : null;
-        fetchLogCollections(currentKeyForRefresh);
+        // Refresh current page data - use the appropriate key
+        // For page 1, use null
+        // For page N, use previousKeys[N-2]
+        const currentKeyForRefresh = pollCurrentPage === 1 
+          ? null 
+          : pollPreviousKeys[pollCurrentPage - 2] || null;
+          
+        console.log("⏰ Polling: Using key", {
+          currentPage: pollCurrentPage,
+          keyIndex: pollCurrentPage - 2,
+          key: currentKeyForRefresh,
+          timestamp: new Date().toISOString(),
+        });
+        
+        fetchLogCollections(currentKeyForRefresh, false, pollCurrentPage);
       } else {
         console.log("⏰ Polling: Skipped - fetch already in progress", {
           currentPage: currentPage,
@@ -463,17 +694,13 @@ export function DashboardPage({ onLogout, userName, onNavigateToLabs, onNavigate
       }
     }, POLLING_INTERVAL);
 
-    // Cleanup on unmount
+    // Cleanup interval when component unmounts or currentPage changes
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      // Abort any pending request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
-  }, [currentPage]); // Re-run when page changes
+  }, [currentPage]); // Only re-run when currentPage changes, not previousKeys
 
   return (
     <>
