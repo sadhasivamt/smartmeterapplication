@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { NavigationPane } from "./navigation-pane";
-import { UserPlus, Search, KeyRound, Trash2 } from "lucide-react";
+import { UserPlus, Search, Trash2 } from "lucide-react";
 import { InviteUserDialog } from "./invite-user-dialog";
-import { ResetPasswordDialog } from "./reset-password-dialog";
 import { toast } from "sonner";
 import { API_ENDPOINTS, getApiUrl, getAuthHeaders } from "../../config/api";
 
@@ -68,9 +67,7 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeletingUser, setIsDeletingUser] = useState(false);
@@ -275,48 +272,6 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
     }
   };
 
-  const handleResetPassword = async (newPassword: string, confirmPassword: string) => {
-    if (!selectedUser) return;
-    
-    setIsResettingPassword(true);
-    
-    try {
-      const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-      
-      const response = await fetch(getApiUrl(API_ENDPOINTS.RESET_PASSWORD), {
-        method: "POST",
-        headers: getAuthHeaders(token),
-        body: JSON.stringify({
-          user_id: selectedUser.email,
-          secret: "9120caof59ab4bd51b39413abe74dfa",
-          new_password: newPassword,
-          confirm_password: confirmPassword,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.status === 200) {
-        toast.success(data.message || "Successfully changed your password; you can now login");
-        setShowResetPasswordDialog(false);
-        setSelectedUser(null);
-      } else if (response.status === 401) {
-        toast.error(data.message || "Password not matched with expected pattern");
-      } else if (response.status === 422) {
-        toast.error(data.message || "Confirm_password is a required property");
-      } else if (response.status === 500) {
-        toast.error(data.message || "MDB Connection Error");
-      } else {
-        toast.error(data.message || "Failed to reset password");
-      }
-    } catch (error) {
-      console.error("Error resetting password:", error);
-      toast.error("Failed to reset password. Please try again.");
-    } finally {
-      setIsResettingPassword(false);
-    }
-  };
-
   const handleDeleteUser = async (user: User) => {
     // Check if current user is admin
     if (!isAdmin()) {
@@ -345,7 +300,7 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
       }
 
       const response = await fetch(getApiUrl(API_ENDPOINTS.DELETE_USER), {
-        method: "POST",
+        method: "DELETE",
         headers: getAuthHeaders(token),
         body: JSON.stringify({
           user_id: user.email || user.user_id,
@@ -509,24 +464,12 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
                           <span className="text-sm text-gray-700">{user.username}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowResetPasswordDialog(true);
-                            }}
-                            className="text-blue-600 border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                          >
-                            <KeyRound className="size-4 mr-2" />
-                            Reset Password
-                          </Button>
                           {isAdmin() && (
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleDeleteUser(user)}
-                              className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700 ml-2"
+                              className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
                             >
                               <Trash2 className="size-4 mr-2" />
                               Delete User
@@ -559,18 +502,6 @@ export function UsersPage({ userName, userEmail, userRole, onLogout, onNavigate 
         onInvite={handleInviteUser}
         currentUserEmail={userEmail || localStorage.getItem("userEmail") || "demo@example.com"}
         isInviting={isInviting}
-      />
-
-      {/* Reset Password Dialog */}
-      <ResetPasswordDialog
-        isOpen={showResetPasswordDialog}
-        onClose={() => {
-          setShowResetPasswordDialog(false);
-          setSelectedUser(null);
-        }}
-        onReset={handleResetPassword}
-        user={selectedUser}
-        isResetting={isResettingPassword}
       />
     </div>
   );
