@@ -1001,6 +1001,12 @@ export function LabsPage({
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded bg-gray-200 border-2 border-gray-400"></div>
                         <span className="text-xs text-gray-700">
+                          No Meter Set
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-red-100 border-2 border-red-300"></div>
+                        <span className="text-xs text-gray-700">
                           Inactive
                         </span>
                       </div>
@@ -1029,35 +1035,41 @@ export function LabsPage({
                             return "bg-red-100 border-red-300 hover:bg-red-200";
                           }
 
-                          // Priority 1: Grey - is_active === false (highest priority)
-                          if (cabinetInfo.is_active === "false") {
-                            return "bg-gray-200 border-gray-400 hover:bg-gray-300";
-                          }
-
-                          // Priority 2: Orange/Yellow - is_active === true AND device_state !== "Commissioned"
-                          if (
-                            cabinetInfo.is_active === "true" &&
-                            !cabinetInfo.has_commissioned_device
-                          ) {
+                          // NEW PRIORITY LOGIC:
+                          // If is_active === true
+                          if (cabinetInfo.is_active === "true") {
+                            // Check if meter_set is empty (no meter set)
+                            const llsData = llsInventoryData.find(
+                              lls => lls.cabinet_id === cabinetInfo.cabinet_id
+                            );
+                            
+                            // If meter_set array is empty -> Grey
+                            if (!llsData?.meter_set || llsData.meter_set.length === 0) {
+                              return "bg-gray-200 border-gray-400 hover:bg-gray-300";
+                            }
+                            
+                            // If has commissioned devices -> Green
+                            if (cabinetInfo.has_commissioned_device) {
+                              return "bg-green-100 border-green-300 hover:bg-green-200";
+                            }
+                            
+                            // Else (active but not commissioned) -> Orange
                             return "bg-orange-100 border-orange-300 hover:bg-orange-200";
                           }
 
-                          // Priority 3: Green - is_active === true AND device_state === "Commissioned"
-                          if (
-                            cabinetInfo.is_active === "true" &&
-                            cabinetInfo.has_commissioned_device
-                          ) {
-                            return "bg-green-100 border-green-300 hover:bg-green-200";
-                          }
-
-                          // Fallback to gray if none of the conditions match
-                          return "bg-gray-200 border-gray-400 hover:bg-gray-300";
+                          // If is_active === false -> Red
+                          return "bg-red-100 border-red-300 hover:bg-red-200";
                         };
 
                         const statusColor = getStatusColor();
-
-                        // Check if this set has red background (no meter set)
-                        const isRedSet = !cabinetInfo && set.signalStrength === "none";
+                        
+                        // Check if this set has no meter set (grey background with is_active = true)
+                        const isNoMeterSet = cabinetInfo && cabinetInfo.is_active === "true" && (() => {
+                          const llsData = llsInventoryData.find(
+                            lls => lls.cabinet_id === cabinetInfo.cabinet_id
+                          );
+                          return !llsData?.meter_set || llsData.meter_set.length === 0;
+                        })();
 
                         return (
                           <button
@@ -1065,20 +1077,13 @@ export function LabsPage({
                             onClick={() =>
                               handleSetClick(set.number)
                             }
+                            disabled={isNoMeterSet} // Disable selection for no meter set
                             className={`p-3 rounded-md border-2 transition-all hover:shadow-md flex flex-col items-center justify-center gap-2 relative ${ 
                               selectedSet === set.number
                                 ? "border-blue-600 bg-blue-600 text-white"
                                 : `${statusColor} text-gray-700`
-                            }`}
+                            } ${isNoMeterSet ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
-                            {/* Red Set Indicator Badge - Shows "No Meter Set" */}
-                            {isRedSet && (
-                              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full shadow-md font-semibold flex items-center gap-1">
-                                <XCircle className="size-3" />
-                                <span>No Meter</span>
-                              </div>
-                            )}
-                            
                             {/* Display Cabinet ID if available, otherwise Set Number */}
                             {cabinetInfo ? (
                               <>
@@ -1096,16 +1101,9 @@ export function LabsPage({
                                 )}
                               </>
                             ) : (
-                              <>
-                                <span className="text-sm font-semibold uppercase">
-                                  {set.cabinet_id || `Set ${set.number}`}
-                                </span>
-                                {isRedSet && (
-                                  <span className="text-xs text-red-700 font-medium mt-1">
-                                    No Meter Set
-                                  </span>
-                                )}
-                              </>
+                              <span className="text-sm font-semibold uppercase">
+                                {set.cabinet_id || `Set ${set.number}`}
+                              </span>
                             )}
                           </button>
                         );
