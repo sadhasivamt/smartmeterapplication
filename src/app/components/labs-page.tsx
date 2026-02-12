@@ -575,7 +575,7 @@ export function LabsPage({
               number: generatedSets.length + 1,
               manufacture: lls.ch_type || "",
               variant: "", // No CHF device_model available
-              signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
+              signalStrength: cabinet.is_active === "false" ? "none" : cabinet.has_commissioned_device ? "full" : "medium",
               cabinet_id: lls.cabinet_id,
             });
           }
@@ -591,7 +591,7 @@ export function LabsPage({
               number: generatedSets.length + 1,
               manufacture: lls.ch_type || "",
               variant: primaryDeviceModel,
-              signalStrength: cabinet.has_commissioned_device ? "full" : cabinet.is_active === "true" ? "medium" : "none",
+              signalStrength: cabinet.is_active === "false" ? "none" : cabinet.has_commissioned_device ? "full" : "medium",
               cabinet_id: lls.cabinet_id,
             });
           }
@@ -1070,6 +1070,14 @@ export function LabsPage({
                           );
                           return !llsData?.meter_set || llsData.meter_set.length === 0;
                         })();
+                        
+                        // Check if meter_set exists for this cabinet
+                        const hasMeterSet = (() => {
+                          const llsData = llsInventoryData.find(
+                            lls => lls.cabinet_id === set.cabinet_id
+                          );
+                          return llsData?.meter_set && llsData.meter_set.length > 0;
+                        })();
 
                         return (
                           <button
@@ -1090,11 +1098,15 @@ export function LabsPage({
                                 <span className="text-sm font-bold uppercase">
                                   {cabinetInfo.cabinet_id}
                                 </span>
-                                <span className="text-xs uppercase font-medium">
-                                  {cabinetInfo.ch_type ||
-                                    set.manufacture}
-                                </span>
-                                {cabinetInfo.ch_variant && (
+                                {/* Only show ch_type if meter_set exists */}
+                                {hasMeterSet && (
+                                  <span className="text-xs uppercase font-medium">
+                                    {cabinetInfo.ch_type ||
+                                      set.manufacture}
+                                  </span>
+                                )}
+                                {/* Only show ch_variant if meter_set exists */}
+                                {hasMeterSet && cabinetInfo.ch_variant && (
                                   <span className="text-xs opacity-75">
                                     {cabinetInfo.ch_variant}
                                   </span>
