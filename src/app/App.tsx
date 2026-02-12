@@ -22,6 +22,7 @@ export default function App() {
   const [selectedManufacture, setSelectedManufacture] = useState("");
   const [selectedVariant, setSelectedVariant] = useState("");
   const [selectedDeviceInfo, setSelectedDeviceInfo] = useState<DeviceInfo[]>([]);
+  const [isActiveSet, setIsActiveSet] = useState(true); // Track if selected set is active
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Set page title
@@ -221,13 +222,14 @@ export default function App() {
     setCurrentPage(page);
   };
 
-  const handleSelectSet = (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string, deviceInfo: DeviceInfo[]) => {
+  const handleSelectSet = (labId: string, labNumber: number, cabinetId: string, manufacture: string, variant: string, deviceInfo: DeviceInfo[], isActiveSet: boolean) => {
     setSelectedLabId(labId);
     setSelectedLab(labNumber);
     setSelectedCabinetId(cabinetId);
     setSelectedManufacture(manufacture);
     setSelectedVariant(variant);
     setSelectedDeviceInfo(deviceInfo);
+    setIsActiveSet(isActiveSet); // Store the active status
     setCurrentPage("setDetails");
   };
 
@@ -274,6 +276,7 @@ export default function App() {
           manufacture={selectedManufacture}
           variant={selectedVariant}
           deviceInfo={selectedDeviceInfo}
+          isActiveSet={isActiveSet}
           onBack={handleBackToLabs}
           onBackToDashboard={handleBackToDashboard}
           userName={userName}

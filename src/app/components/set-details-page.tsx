@@ -18,6 +18,7 @@ interface SetDetailsPageProps {
   manufacture: string;
   variant: string;
   deviceInfo: DeviceInfo[];
+  isActiveSet: boolean; // New parameter to check if set is active
   onBack: () => void;
   onBackToDashboard: () => void;
   userName: string;
@@ -29,7 +30,7 @@ interface SetDetailsPageProps {
 
 type DeviceType = "CHF" | "ESME" | "PPMID" | "GSME" | "GPF";
 
-export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, deviceInfo, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, userRole }: SetDetailsPageProps) {
+export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, variant, deviceInfo, isActiveSet, onBack, onBackToDashboard, userName, onLogout, onNavigateToLabs, onNavigate, userRole }: SetDetailsPageProps) {
   const [taskDescription, setTaskDescription] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -403,226 +404,217 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
                     <Loader2 className="size-8 animate-spin text-blue-600" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {deviceInventory.map((device, index) => (
-                      <div
-                        key={index}
-                        className="p-4 rounded-lg border-2 border-blue-600 bg-blue-50"
-                      >
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-3">
-                            <Cpu className="size-8 text-blue-600 flex-shrink-0" />
-                            <span className="font-semibold text-lg">{device.device_type || device.host_name.split('-')[0]}</span>
-                          </div>
-                          <div className="space-y-1.5 text-sm">
-                            {device.manufacturer && (
-                              <div>
-                                <span className="text-gray-600">Manufacturer:</span>
-                                <p className="font-medium text-gray-900">{device.manufacturer}</p>
-                              </div>
-                            )}
-                            {device.guid && (
-                              <div>
-                                <span className="text-gray-600">GUID:</span>
-                                <p className="font-medium text-gray-900 break-all">{device.guid}</p>
-                              </div>
-                            )}
-                            {device.device_state && (
-                              <div>
-                                <span className="text-gray-600">Device State:</span>
-                                <p className="font-medium text-gray-900">{device.device_state}</p>
-                              </div>
-                            )}
-                            {device.device_model && (
-                              <div>
-                                <span className="text-gray-600">Device Model:</span>
-                                <p className="font-medium text-gray-900">{device.device_model}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                  <>
+                    {/* Inactive Set Warning Message */}
+                    {!isActiveSet && (
+                      <div className="mb-4 p-4 bg-gray-100 border-2 border-gray-400 rounded-lg">
+                        <p className="text-sm text-gray-700 font-medium">
+                          ⚠️ This cabinet is inactive. Log retrieval is not available for inactive cabinets.
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Date/Time Selection */}
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle>Select Date and Time Range</CardTitle>
-                <CardDescription>
-                  Choose the time period for log retrieval (future dates not allowed)
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Task Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">
-                    Task Description <span className="text-red-600">*</span>
-                  </Label>
-                  <input
-                    id="task-description"
-                    type="text"
-                    placeholder="Enter task description"
-                    value={taskDescription}
-                    onChange={(e) => setTaskDescription(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Start Date/Time */}
-                  <div className="space-y-2">
-                    <Label htmlFor="start-date">Start Date</Label>
-                    <input
-                      id="start-date"
-                      type="date"
-                      max={maxDate}
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="start-time">Start Time</Label>
-                    <input
-                      id="start-time"
-                      type="time"
-                      max={maxTime}
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-
-                  {/* End Date/Time */}
-                  <div className="space-y-2">
-                    <Label htmlFor="end-date">End Date</Label>
-                    <input
-                      id="end-date"
-                      type="date"
-                      min={startDate || undefined}
-                      max={maxDate}
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="end-time">End Time</Label>
-                    <input
-                      id="end-time"
-                      type="time"
-                      max={maxTime}
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-
-                {/* Log Type Selection */}
-                {startDate && startTime && endDate && endTime && (
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                    <Label>Log Type</Label>
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ch-logs"
-                          checked={logTypes.CH}
-                          onCheckedChange={(checked) => {
-                            setLogTypes({ ...logTypes, CH: checked as boolean });
-                            if (!checked) {
-                              setChLogFormat("");
-                            }
-                          }}
-                        />
-                        <Label htmlFor="ch-logs" className="cursor-pointer font-normal">
-                          CH Logs
-                        </Label>
-                      </div>
-                      
-                      {/* CH Log Format Dropdown - Shows when CH is selected (OPTIONAL) */}
-                      {logTypes.CH && (
-                        <div className="ml-6 space-y-2">
-                          <Label htmlFor="ch-log-format" className="text-sm">
-                            Log Format <span className="text-gray-500 text-xs">*(Optional)</span>
-                          </Label>
-                          <select
-                            id="ch-log-format"
-                            value={chLogFormat}
-                            onChange={(e) => setChLogFormat(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="">Select log format</option>
-                            <option value=".pcap">.pcap</option>
-                            <option value=".dcf">.dcf</option>
-                            <option value=".cubx">.cubx</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
+                    )}
                     
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="han-logs"
-                          checked={logTypes.HAN}
-                          onCheckedChange={(checked) => {
-                            setLogTypes({ ...logTypes, HAN: checked as boolean });
-                            if (!checked) {
-                              setHanLogFormat("");
-                            }
-                          }}
-                        />
-                        <Label htmlFor="han-logs" className="cursor-pointer font-normal">
-                          HAN Logs
-                        </Label>
-                      </div>
-                      
-                      {/* HAN Log Format Dropdown - Shows when HAN is selected (MANDATORY) */}
-                      {logTypes.HAN && (
-                        <div className="ml-6 space-y-2">
-                          <Label htmlFor="han-log-format" className="text-sm">
-                            Log Format <span className="text-red-600">*</span>
-                          </Label>
-                          <select
-                            id="han-log-format"
-                            value={hanLogFormat}
-                            onChange={(e) => setHanLogFormat(e.target.value)}
-                            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="">Select log format</option>
-                            <option value=".pcap">.pcap</option>
-                            <option value=".dcf">.dcf</option>
-                            <option value=".cubx">.cubx</option>
-                          </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {deviceInventory.map((device, index) => (
+                        <div
+                          key={index}
+                          className="p-4 rounded-lg border-2 border-blue-600 bg-blue-50"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                              <Cpu className="size-8 text-blue-600 flex-shrink-0" />
+                              <span className="font-semibold text-lg">{device.device_type || device.host_name.split('-')[0]}</span>
+                            </div>
+                            <div className="space-y-1.5 text-sm">
+                              {device.manufacturer && (
+                                <div>
+                                  <span className="text-gray-600">Manufacturer:</span>
+                                  <p className="font-medium text-gray-900">{device.manufacturer}</p>
+                                </div>
+                              )}
+                              {device.guid && (
+                                <div>
+                                  <span className="text-gray-600">GUID:</span>
+                                  <p className="font-medium text-gray-900 break-all">{device.guid}</p>
+                                </div>
+                              )}
+                              {device.device_state && (
+                                <div>
+                                  <span className="text-gray-600">Device State:</span>
+                                  <p className="font-medium text-gray-900">{device.device_state}</p>
+                                </div>
+                              )}
+                              {device.device_model && (
+                                <div>
+                                  <span className="text-gray-600">Device Model:</span>
+                                  <p className="font-medium text-gray-900">{device.device_model}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Retrieve Button */}
-                {startDate && startTime && endDate && endTime && (logTypes.CH || logTypes.HAN) && (
-                  <Button
-                    onClick={handleRetrieveLogs}
-                    className="w-full gap-2"
-                    size="lg"
-                  >
-                    <Download className="size-4" />
-                    Retrieve Log Collection
-                  </Button>
+                  </>
                 )}
               </CardContent>
             </Card>
 
-            {/* Selection Summary */}
-            {startDate && startTime && endDate && endTime && (
+            {/* Date/Time Selection - Only show for active sets */}
+            {isActiveSet && (
+              <Card className="shadow-lg">
+                <CardHeader>
+                  <CardTitle>Select Date and Time Range</CardTitle>
+                  <CardDescription>
+                    Choose the time period for log retrieval (future dates not allowed)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Task Description */}
+                  <div className="space-y-2">
+                    <Label htmlFor="task-description">
+                      Task Description <span className="text-red-600">*</span>
+                    </Label>
+                    <input
+                      id="task-description"
+                      type="text"
+                      placeholder="Enter task description"
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Start Date/Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="start-date">Start Date</Label>
+                      <input
+                        id="start-date"
+                        type="date"
+                        max={maxDate}
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="start-time">Start Time</Label>
+                      <input
+                        id="start-time"
+                        type="time"
+                        max={maxTime}
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+
+                    {/* End Date/Time */}
+                    <div className="space-y-2">
+                      <Label htmlFor="end-date">End Date</Label>
+                      <input
+                        id="end-date"
+                        type="date"
+                        min={startDate || undefined}
+                        max={maxDate}
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="end-time">End Time</Label>
+                      <input
+                        id="end-time"
+                        type="time"
+                        max={maxTime}
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Log Type Selection */}
+                  {startDate && startTime && endDate && endTime && (
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                      <Label>Log Type</Label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="ch-logs"
+                            checked={logTypes.CH}
+                            onCheckedChange={(checked) => {
+                              setLogTypes({ ...logTypes, CH: checked as boolean });
+                              if (!checked) {
+                                setChLogFormat("");
+                              }
+                            }}
+                          />
+                          <Label htmlFor="ch-logs" className="cursor-pointer font-normal">
+                            CH Logs
+                          </Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="han-logs"
+                            checked={logTypes.HAN}
+                            onCheckedChange={(checked) => {
+                              setLogTypes({ ...logTypes, HAN: checked as boolean });
+                              if (!checked) {
+                                setHanLogFormat("");
+                              }
+                            }}
+                          />
+                          <Label htmlFor="han-logs" className="cursor-pointer font-normal">
+                            HAN Logs
+                          </Label>
+                        </div>
+                        
+                        {/* HAN Log Format Dropdown - Shows ONLY when HAN is selected (MANDATORY) */}
+                        {logTypes.HAN && (
+                          <div className="ml-6 space-y-2">
+                            <Label htmlFor="han-log-format" className="text-sm">
+                              Log Format <span className="text-red-600">*</span>
+                            </Label>
+                            <select
+                              id="han-log-format"
+                              value={hanLogFormat}
+                              onChange={(e) => setHanLogFormat(e.target.value)}
+                              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="">Select log format</option>
+                              <option value=".pcap">.pcap</option>
+                              <option value=".dcf">.dcf</option>
+                              <option value=".cubx">.cubx</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Retrieve Button */}
+                  {startDate && startTime && endDate && endTime && (logTypes.CH || logTypes.HAN) && (
+                    <Button
+                      onClick={handleRetrieveLogs}
+                      className="w-full gap-2"
+                      size="lg"
+                    >
+                      <Download className="size-4" />
+                      Retrieve Log Collection
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Selection Summary - Only show for active sets */}
+            {isActiveSet && startDate && startTime && endDate && endTime && (
               <Card className="shadow-lg bg-blue-50 border-blue-200">
                 <CardHeader>
                   <CardTitle className="text-sm">Current Selection Summary</CardTitle>

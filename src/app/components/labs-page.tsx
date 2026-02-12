@@ -55,6 +55,7 @@ interface LabsPageProps {
     manufacture: string,
     variant: string,
     deviceInfo: DeviceInfo[],
+    isActiveSet: boolean, // New parameter to pass set status
   ) => void;
   onNavigateToDashboard: () => void;
   onNavigate: (page: "dashboard" | "labs" | "admin") => void;
@@ -684,6 +685,18 @@ export function LabsPage({
       timestamp: new Date().toISOString(),
     });
 
+    // Sort sets in ascending order by cabinet_id (name)
+    filtered.sort((a, b) => {
+      const nameA = a.name.toUpperCase();
+      const nameB = b.name.toUpperCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    console.log("📊 Sets Sorted in Ascending Order:", {
+      sortedSets: filtered.map(s => s.name),
+      timestamp: new Date().toISOString(),
+    });
+
     return filtered;
   };
 
@@ -797,6 +810,9 @@ export function LabsPage({
         timestamp: new Date().toISOString(),
       });
       
+      // Determine if the set is active
+      const isActiveSet = cabinetData.some(c => c.cabinet_id === cabinetId && c.is_active === "true");
+      
       onSelectSet(
         lab.lab_id,
         lab.number,
@@ -804,6 +820,7 @@ export function LabsPage({
         set.manufacture,
         set.variant,
         devices,
+        isActiveSet,
       );
     }
   };
@@ -1039,18 +1056,29 @@ export function LabsPage({
 
                         const statusColor = getStatusColor();
 
+                        // Check if this set has red background (no meter set)
+                        const isRedSet = !cabinetInfo && set.signalStrength === "none";
+
                         return (
                           <button
                             key={set.id}
                             onClick={() =>
                               handleSetClick(set.number)
                             }
-                            className={`p-3 rounded-md border-2 transition-all hover:shadow-md flex flex-col items-center justify-center gap-2 ${
+                            className={`p-3 rounded-md border-2 transition-all hover:shadow-md flex flex-col items-center justify-center gap-2 relative ${ 
                               selectedSet === set.number
                                 ? "border-blue-600 bg-blue-600 text-white"
                                 : `${statusColor} text-gray-700`
                             }`}
                           >
+                            {/* Red Set Indicator Badge - Shows "No Meter Set" */}
+                            {isRedSet && (
+                              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full shadow-md font-semibold flex items-center gap-1">
+                                <XCircle className="size-3" />
+                                <span>No Meter</span>
+                              </div>
+                            )}
+                            
                             {/* Display Cabinet ID if available, otherwise Set Number */}
                             {cabinetInfo ? (
                               <>
@@ -1068,9 +1096,16 @@ export function LabsPage({
                                 )}
                               </>
                             ) : (
-                              <span className="text-sm font-semibold uppercase">
-                                {set.cabinet_id || `Set ${set.number}`}
-                              </span>
+                              <>
+                                <span className="text-sm font-semibold uppercase">
+                                  {set.cabinet_id || `Set ${set.number}`}
+                                </span>
+                                {isRedSet && (
+                                  <span className="text-xs text-red-700 font-medium mt-1">
+                                    No Meter Set
+                                  </span>
+                                )}
+                              </>
                             )}
                           </button>
                         );
