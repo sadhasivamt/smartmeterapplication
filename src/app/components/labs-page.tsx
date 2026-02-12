@@ -972,13 +972,13 @@ export function LabsPage({
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded bg-green-100 border-2 border-green-300"></div>
                         <span className="text-xs text-gray-700">
-                          Commissioned
+                          Active & Commissioned
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-yellow-100 border-2 border-yellow-300"></div>
+                        <div className="w-4 h-4 rounded bg-orange-100 border-2 border-orange-300"></div>
                         <span className="text-xs text-gray-700">
-                          Not Commissioned
+                          Active & Not Commissioned
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1012,21 +1012,28 @@ export function LabsPage({
                             return "bg-red-100 border-red-300 hover:bg-red-200";
                           }
 
-                          // Green: device_state === "Commissioned" AND is_active === true
+                          // Priority 1: Grey - is_active === false (highest priority)
+                          if (cabinetInfo.is_active === "false") {
+                            return "bg-gray-200 border-gray-400 hover:bg-gray-300";
+                          }
+
+                          // Priority 2: Orange/Yellow - is_active === true AND device_state !== "Commissioned"
+                          if (
+                            cabinetInfo.is_active === "true" &&
+                            !cabinetInfo.has_commissioned_device
+                          ) {
+                            return "bg-orange-100 border-orange-300 hover:bg-orange-200";
+                          }
+
+                          // Priority 3: Green - is_active === true AND device_state === "Commissioned"
                           if (
                             cabinetInfo.is_active === "true" &&
                             cabinetInfo.has_commissioned_device
                           ) {
                             return "bg-green-100 border-green-300 hover:bg-green-200";
                           }
-                          // Orange/Yellow: device_state !== "Commissioned" AND is_active === true
-                          if (
-                            cabinetInfo.is_active === "true" &&
-                            !cabinetInfo.has_commissioned_device
-                          ) {
-                            return "bg-yellow-100 border-yellow-300 hover:bg-yellow-200";
-                          }
-                          // Gray/Red: is_active === false
+
+                          // Fallback to gray if none of the conditions match
                           return "bg-gray-200 border-gray-400 hover:bg-gray-300";
                         };
 

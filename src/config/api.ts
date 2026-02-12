@@ -18,6 +18,7 @@ export const API_BASE_URL =
 export const API_ENDPOINTS = {
   // Auth endpoints
   LOGIN: import.meta.env.VITE_API_LOGIN || "/log-auth/login",
+  SIGNUP: import.meta.env.VITE_API_SIGNUP || "/log-auth/sign_up",
   LOGOUT: import.meta.env.VITE_API_LOGOUT || "/log-auth/logout",
   FORGOT_PASSWORD:
     import.meta.env.VITE_API_FORGOT_PASSWORD ||

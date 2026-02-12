@@ -19,8 +19,8 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "", remember: false });
   const [signupData, setSignupData] = useState({ 
-    name: "", 
     email: "", 
+    secretCode: "",
     password: "", 
     confirmPassword: "" 
   });
@@ -376,27 +376,159 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
     }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!signupData.name || !signupData.email || !signupData.password || !signupData.confirmPassword) {
+    // Validate all fields are filled
+    if (!signupData.email || !signupData.secretCode || !signupData.password || !signupData.confirmPassword) {
       toast.error("Please fill in all fields");
       return;
     }
     
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(signupData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    
+    // Validate passwords match
     if (signupData.password !== signupData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
     
+    // Validate password length
     if (signupData.password.length < 8) {
       toast.error("Password must be at least 8 characters long");
       return;
     }
     
-    // Mock signup - in a real app, this would make an API call
-    toast.success("Account created successfully!");
-    onLoginSuccess(signupData.name);
+    setIsLoading(true);
+
+    try {
+      const signupEndpoint = getApiUrl(API_ENDPOINTS.SIGNUP);
+      
+      console.log("🚀 API Call - SIGNUP:", {
+        url: signupEndpoint,
+        method: "POST",
+        body: { 
+          user_id: signupData.email, 
+          secret: "[REDACTED]",
+          new_password: "***",
+          confirm_password: "***"
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      const response = await fetch(signupEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: signupData.email,
+          secret: signupData.secretCode,
+          new_password: signupData.password,
+          confirm_password: signupData.confirmPassword,
+        }),
+      });
+
+      console.log("✅ API Response - SIGNUP:", {
+        url: signupEndpoint,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
+
+      // Handle 200 success response
+      if (response.status === 200) {
+        if (isJson) {
+          const data = await response.json();
+          toast.success(data.message || "Account created successfully!");
+          console.log("✅ Signup Success:", {
+            email: signupData.email,
+            message: data.message,
+            timestamp: new Date().toISOString(),
+          });
+          
+          // Clear form
+          setSignupData({
+            email: "",
+            secretCode: "",
+            password: "",
+            confirmPassword: "",
+          });
+          
+          // Switch to login tab after successful signup
+          // Note: This would require managing the tab state, for now just show success
+          return;
+        } else {
+          toast.success("Account created successfully!");
+          return;
+        }
+      }
+
+      // Handle error responses
+      let errorMessage = "An error occurred. Please try again.";
+
+      if (isJson) {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.detail || errorMessage;
+      }
+
+      // Handle specific error codes
+      switch (response.status) {
+        case 401:
+          toast.error(errorMessage || "The supplied parameters are incorrect");
+          console.error("❌ Signup Error (401):", {
+            email: signupData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 422:
+          toast.error(errorMessage || "Missing required fields");
+          console.error("❌ Signup Error (422):", {
+            email: signupData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        case 500:
+          toast.error(errorMessage || "MDB CONNECTION ERROR");
+          console.error("❌ Signup Error (500):", {
+            email: signupData.email,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        
+        default:
+          toast.error(errorMessage);
+          console.error("❌ Signup Error (Unknown):", {
+            email: signupData.email,
+            status: response.status,
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+      }
+    } catch (error) {
+      console.error("❌ Signup Error (Network):", {
+        email: signupData.email,
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      });
+      toast.error("Network error. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -499,21 +631,6 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
-                      <Input
-                        id="signup-name"
-                        type="text"
-                        placeholder="John Doe"
-                        className="pl-10"
-                        value={signupData.name}
-                        onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
@@ -524,6 +641,21 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                         className="pl-10"
                         value={signupData.email}
                         onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-secret-code">Secret Code</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
+                      <Input
+                        id="signup-secret-code"
+                        type="text"
+                        placeholder="Enter secret code"
+                        className="pl-10"
+                        value={signupData.secretCode}
+                        onChange={(e) => setSignupData({ ...signupData, secretCode: e.target.value })}
                       />
                     </div>
                   </div>
@@ -589,17 +721,10 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
       {/* Footer */}
       <div className="w-full max-w-7xl mx-auto mt-6 mb-4">
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-center md:text-left">
-              <p className="text-sm text-gray-600">
-                Copyright © 2026. All rights reserved.
-              </p>
-            </div>
-            <div className="text-center md:text-right">
-              <p className="text-sm text-gray-600">
-                Contact us: <a href="mailto:support@gmail.com" className="text-blue-600 hover:underline">support@gmail.com</a>
-              </p>
-            </div>
+          <div className="flex justify-center items-center">
+            <p className="text-sm text-gray-600">
+              Copyright © 2026. All rights reserved.
+            </p>
           </div>
         </div>
       </div>

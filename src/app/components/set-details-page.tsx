@@ -39,6 +39,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
     CH: false,
     HAN: false,
   });
+  const [chLogFormat, setChLogFormat] = useState<string>("");
   const [hanLogFormat, setHanLogFormat] = useState<string>("");
 
   const devices: DeviceType[] = ["CHF", "ESME", "PPMID", "GSME", "GPF"];
@@ -161,9 +162,13 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
         log_types: selectedLogTypes
       };
 
-      // Add log_format only if HAN is selected
+      // Add log_format only if HAN is selected and has a format
+      // If both CH and HAN are selected, HAN log format takes priority
+      // If only CH is selected and has a format, use CH log format (optional)
       if (logTypes.HAN && hanLogFormat) {
         requestPayload.log_format = hanLogFormat;
+      } else if (logTypes.CH && chLogFormat) {
+        requestPayload.log_format = chLogFormat;
       }
 
       const startLogCollectionUrl = getApiUrl(API_ENDPOINTS.START_LOG_COLLECTION);
@@ -524,16 +529,44 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
                 {startDate && startTime && endDate && endTime && (
                   <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
                     <Label>Log Type</Label>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="ch-logs"
-                        checked={logTypes.CH}
-                        onCheckedChange={(checked) => setLogTypes({ ...logTypes, CH: checked as boolean })}
-                      />
-                      <Label htmlFor="ch-logs" className="cursor-pointer font-normal">
-                        CH Logs
-                      </Label>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="ch-logs"
+                          checked={logTypes.CH}
+                          onCheckedChange={(checked) => {
+                            setLogTypes({ ...logTypes, CH: checked as boolean });
+                            if (!checked) {
+                              setChLogFormat("");
+                            }
+                          }}
+                        />
+                        <Label htmlFor="ch-logs" className="cursor-pointer font-normal">
+                          CH Logs
+                        </Label>
+                      </div>
+                      
+                      {/* CH Log Format Dropdown - Shows when CH is selected (OPTIONAL) */}
+                      {logTypes.CH && (
+                        <div className="ml-6 space-y-2">
+                          <Label htmlFor="ch-log-format" className="text-sm">
+                            Log Format <span className="text-gray-500 text-xs">*(Optional)</span>
+                          </Label>
+                          <select
+                            id="ch-log-format"
+                            value={chLogFormat}
+                            onChange={(e) => setChLogFormat(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Select log format</option>
+                            <option value=".pcap">.pcap</option>
+                            <option value=".dcf">.dcf</option>
+                            <option value=".cubx">.cubx</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
+                    
                     <div className="space-y-3">
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -551,7 +584,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
                         </Label>
                       </div>
                       
-                      {/* HAN Log Format Dropdown - Shows when HAN is selected */}
+                      {/* HAN Log Format Dropdown - Shows when HAN is selected (MANDATORY) */}
                       {logTypes.HAN && (
                         <div className="ml-6 space-y-2">
                           <Label htmlFor="han-log-format" className="text-sm">
