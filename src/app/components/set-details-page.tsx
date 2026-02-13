@@ -42,6 +42,7 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
   });
   const [chLogFormat, setChLogFormat] = useState<string>("");
   const [hanLogFormat, setHanLogFormat] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false); // Loading state for button
 
   const devices: DeviceType[] = ["CHF", "ESME", "PPMID", "GSME", "GPF"];
 
@@ -128,11 +129,15 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
       return;
     }
 
+    // Set loading state before API call
+    setIsSubmitting(true);
+
     try {
       const token = getAuthToken();
       
       if (!token) {
         toast.error("Authentication token not found. Please login again.");
+        setIsSubmitting(false); // Reset on error
         return;
       }
 
@@ -310,6 +315,8 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
       console.error("Error submitting log collection:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to submit log collection request";
       toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false); // Reset loading state
     }
   };
 
@@ -604,8 +611,13 @@ export function SetDetailsPage({ labId, labNumber, cabinetId, manufacture, varia
                       onClick={handleRetrieveLogs}
                       className="w-full gap-2"
                       size="lg"
+                      disabled={isSubmitting} // Disable button when submitting
                     >
-                      <Download className="size-4" />
+                      {isSubmitting ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Download className="size-4" />
+                      )}
                       Retrieve Log Collection
                     </Button>
                   )}
